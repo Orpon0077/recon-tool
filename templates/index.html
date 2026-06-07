@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Recon Tool</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <header>
+    <h1>Recon Tool</h1>
+    <span id="statusLabel">IDLE</span>
+  </header>
+
+  <main>
+    <section class="input-section">
+      <input type="text" id="urlInput" placeholder="Enter URL e.g. example.com" />
+      <button id="scanBtn" onclick="startScan()">Analyze</button>
+    </section>
+
+
+    <section id="logSection" style="display:none">
+      <h2>Log</h2>
+      <div id="terminalLog"></div>
+    </section>
+
+    <div id="resultsGrid" style="display:none">
+
+      <section class="card" id="sslPanel">
+        <h2>SSL/TLS Analysis <span id="sslStatus"></span></h2>
+        <div id="sslBody"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
