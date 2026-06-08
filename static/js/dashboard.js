@@ -31,7 +31,7 @@ async function startScan() {
   log(`Target: ${rawUrl}`);
   log("Running SSL analysis...");
   log("Running Security Headers analysis...");
-  log("Running Port Scan... (এটা একটু সময় নেবে)");
+  log("Running Port Scan... (This may take a moment)");
 
   try {
     // ── SSL Analysis ─────────────────────────────────────
