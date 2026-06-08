@@ -37,3 +37,20 @@ class SecurityHeadersResult(BaseModel):
     missing: list[str] = []          # অনুপস্থিত security headers
     score: int = 0                             # security headers এর স্কোর (0-100)
     error: Optional[str] = None           # error হলে এখানে আসবে
+
+
+# ── Port Scanning ──────────────────────────────────────────
+# প্রতিটা open port এর তথ্য রাখে
+class PortInfo(BaseModel):
+    port: int                       # port নম্বর
+    service: Optional[str] = None   # কোন সার্ভিস চলছে
+    version: Optional[str] = None   # সার্ভিসের version
+    state: str = "open"             # port এর অবস্থা (open/closed/filtered)
+
+# Port scanning এর ফলাফল রাখে
+class PortScanResult(BaseModel):
+    url: str
+    host: Optional[str] = None        # hostname যেমন example.com
+    open_ports: list[PortInfo] = []   # খোলা port গুলোর তালিকা
+    total_open: int = 0               # মোট খোলা port এর সংখ্যা
+    error: Optional[str] = None       # error হলে এখানে আসবে

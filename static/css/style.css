@@ -159,3 +159,55 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 768px) {
   #resultsGrid { grid-template-columns: 1fr; }
 }
+
+/* ── Full Width Card ──────────────────────────────────────
+   Port scanning card পুরো width জুড়ে দেখাবে */
+.full-width {
+  grid-column: 1 / -1;
+}
+
+/* ── Port Table ───────────────────────────────────────────
+   Port scanning এর result table */
+.port-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.port-table th {
+  text-align: left;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  color: #555;
+  font-weight: bold;
+  border-bottom: 2px solid #ddd;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.port-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #222;
+}
+
+.port-table tr:last-child td {
+  border-bottom: none;
+}
+
+.port-table tr:hover td {
+  background: #f9f9f9;
+}
+
+/* Port নম্বর bold এবং নীল */
+.port-num {
+  font-weight: bold;
+  color: #1a1a2e;
+}
+
+/* Open port সবুজ */
+.port-open {
+  color: #00aa55;
+  font-weight: bold;
+}

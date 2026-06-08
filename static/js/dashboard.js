@@ -31,8 +31,10 @@ async function startScan() {
   log(`Target: ${rawUrl}`);
   log("Running SSL analysis...");
   log("Running Security Headers analysis...");
+  log("Running Port Scan... (এটা একটু সময় নেবে)");
 
   try {
+    // ── SSL Analysis ─────────────────────────────────────
     const sslResponse = await fetch("/api/ssl", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -42,6 +44,7 @@ async function startScan() {
     const sslData = await sslResponse.json();
     log("SSL analysis done!", "ok");
 
+    // ── Security Headers Analysis ─────────────────────────
     const secResponse = await fetch("/api/security-headers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -51,8 +54,20 @@ async function startScan() {
     const secData = await secResponse.json();
     log("Security Headers analysis done!", "ok");
 
+    // ── Port Scanning ─────────────────────────────────────
+    const portsResponse = await fetch("/api/ports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: rawUrl }),
+    });
+    if (!portsResponse.ok) throw new Error(`Port Scan API error: ${portsResponse.status}`);
+    const portsData = await portsResponse.json();
+    log(`Port scan done! ${portsData.total_open} open ports found.`, "ok");
+
+    // ── Results দেখাও ────────────────────────────────────
     renderSSL(sslData);
     renderSecurity(secData);
+    renderPorts(portsData);
 
     resultsGrid.style.display = "grid";
     statusLabel.textContent = "COMPLETE";
@@ -66,6 +81,7 @@ async function startScan() {
   }
 }
 
+// ── SSL Result দেখাও ──────────────────────────────────────
 function renderSSL(data) {
   const body = document.getElementById("sslBody");
   const status = document.getElementById("sslStatus");
@@ -106,6 +122,7 @@ function renderSSL(data) {
     </div>`;
 }
 
+// ── Security Headers Result দেখাও ─────────────────────────
 function renderSecurity(data) {
   const body = document.getElementById("securityBody");
   const status = document.getElementById("securityStatus");
@@ -140,6 +157,50 @@ function renderSecurity(data) {
     ${missingHtml}`;
 }
 
+// ── Port Scan Result দেখাও ────────────────────────────────
+function renderPorts(data) {
+  const body = document.getElementById("portsBody");
+  const status = document.getElementById("portsStatus");
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    status.textContent = "FAILED";
+    return;
+  }
+
+  status.textContent = `${data.total_open} open ports`;
+
+  if (data.total_open === 0) {
+    body.innerHTML = `<p class="no-data">No open ports found.</p>`;
+    return;
+  }
+
+  // Table বানাও
+  const rows = data.open_ports.map(p => `
+    <tr>
+      <td><span class="port-num">${p.port}</span></td>
+      <td>${esc(p.service)}</td>
+      <td><span class="port-open">${esc(p.state)}</span></td>
+      <td>${esc(p.version)}</td>
+    </tr>`).join("");
+
+  body.innerHTML = `
+    <table class="port-table">
+      <thead>
+        <tr>
+          <th>Port</th>
+          <th>Service</th>
+          <th>State</th>
+          <th>Version / Banner</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>`;
+}
+
+// ── XSS থেকে রক্ষা করো ────────────────────────────────────
 function esc(str) {
   if (str == null) return "";
   return String(str)
