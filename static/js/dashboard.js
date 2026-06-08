@@ -6,6 +6,9 @@ const terminalLog = document.getElementById("terminalLog");
 const resultsGrid = document.getElementById("resultsGrid");
 const statusLabel = document.getElementById("statusLabel");
 
+// Page load হলে history দেখাও
+window.onload = () => loadHistory();
+
 urlInput.addEventListener("keydown", e => {
   if (e.key === "Enter") startScan();
 });
@@ -18,6 +21,54 @@ function log(text, type = "info") {
   terminalLog.scrollTop = terminalLog.scrollHeight;
 }
 
+// ── History load করো ──────────────────────────────────────
+async function loadHistory() {
+  const historyList = document.getElementById("historyList");
+
+  try {
+    const response = await fetch("/api/history");
+    const scans = await response.json();
+
+    if (scans.length === 0) {
+      historyList.innerHTML = `<p class="no-data">No scans yet.</p>`;
+      return;
+    }
+
+    historyList.innerHTML = scans.map(scan => `
+      <div class="history-item" onclick="loadScan('${scan.id}')">
+        <div class="history-url">${esc(scan.url)}</div>
+        <div class="history-time">${esc(scan.timestamp)}</div>
+      </div>`).join("");
+
+  } catch (err) {
+    historyList.innerHTML = `<p class="no-data">Failed to load history.</p>`;
+  }
+}
+
+// ── পুরনো scan load করো ───────────────────────────────────
+async function loadScan(scanId) {
+  try {
+    const response = await fetch(`/api/history/${scanId}`);
+    const data = await response.json();
+
+    if (data.error) return;
+
+    // Results দেখাও
+    renderSSL(data.results.ssl);
+    renderSecurity(data.results.security_headers);
+    renderPorts(data.results.ports);
+    renderScreenshot(data.results.screenshot);
+
+    resultsGrid.style.display = "grid";
+    logSection.style.display = "none";
+    statusLabel.textContent = "LOADED FROM HISTORY";
+
+  } catch (err) {
+    console.error("Failed to load scan:", err);
+  }
+}
+
+// ── Main Scan Function ─────────────────────────────────────
 async function startScan() {
   const rawUrl = urlInput.value.trim();
   if (!rawUrl) { urlInput.focus(); return; }
@@ -29,61 +80,35 @@ async function startScan() {
   statusLabel.textContent = "SCANNING...";
 
   log(`Target: ${rawUrl}`);
-  log("Running SSL analysis...");
-  log("Running Security Headers analysis...");
-  log("Running Port Scan... (This may take a moment)");
-  log("Taking screenshot... (This may take a moment)");
+  log("Running all modules...");
+  log("Port Scan may take a moment...");
 
   try {
-    // ── SSL Analysis ─────────────────────────────────────
-    const sslResponse = await fetch("/api/ssl", {
+    // সব modules একসাথে চালাও — /api/scan endpoint
+    const response = await fetch("/api/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: rawUrl }),
     });
-    if (!sslResponse.ok) throw new Error(`SSL API error: ${sslResponse.status}`);
-    const sslData = await sslResponse.json();
-    log("SSL analysis done!", "ok");
 
-    // ── Security Headers Analysis ─────────────────────────
-    const secResponse = await fetch("/api/security-headers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: rawUrl }),
-    });
-    if (!secResponse.ok) throw new Error(`Security Headers API error: ${secResponse.status}`);
-    const secData = await secResponse.json();
-    log("Security Headers analysis done!", "ok");
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
 
-    // ── Port Scanning ─────────────────────────────────────
-    const portsResponse = await fetch("/api/ports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: rawUrl }),
-    });
-    if (!portsResponse.ok) throw new Error(`Port Scan API error: ${portsResponse.status}`);
-    const portsData = await portsResponse.json();
-    log(`Port scan done! ${portsData.total_open} open ports found.`, "ok");
+    const data = await response.json();
+    log("All modules done!", "ok");
+    log(`Saved to database. ID: ${data.scan_id}`, "ok");
 
-    // ── Screenshot ────────────────────────────────────────
-    const ssResponse = await fetch("/api/screenshot", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: rawUrl }),
-    });
-    if (!ssResponse.ok) throw new Error(`Screenshot API error: ${ssResponse.status}`);
-    const ssData = await ssResponse.json();
-    log("Screenshot done!", "ok");
-
-    // ── Results দেখাও ────────────────────────────────────
-    renderSSL(sslData);
-    renderSecurity(secData);
-    renderPorts(portsData);
-    renderScreenshot(ssData);
+    // Results দেখাও
+    renderSSL(data.ssl);
+    renderSecurity(data.security_headers);
+    renderPorts(data.ports);
+    renderScreenshot(data.screenshot);
 
     resultsGrid.style.display = "grid";
     statusLabel.textContent = "COMPLETE";
     log("All done!", "ok");
+
+    // History refresh করো
+    loadHistory();
 
   } catch (err) {
     log(`Error: ${err.message}`, "error");
@@ -230,7 +255,7 @@ function renderScreenshot(data) {
 
   body.innerHTML = `
     <div class="screenshot-wrap">
-      <img src="/static/${esc(data.screenshot_path)}" alt="Screenshot of ${esc(data.url)}"
+      <img src="/static/${esc(data.screenshot_path)}" alt="Screenshot"
            onerror="this.parentElement.innerHTML='<p class=no-data>Image failed to load.</p>'" />
       <div class="screenshot-overlay">${esc(data.url)}</div>
     </div>`;

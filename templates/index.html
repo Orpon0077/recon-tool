@@ -13,45 +13,61 @@
     <span id="statusLabel">IDLE</span>
   </header>
 
-  <main>
-    <section class="input-section">
-      <input type="text" id="urlInput" placeholder="Enter URL e.g. example.com" />
-      <button id="scanBtn" onclick="startScan()">Analyze</button>
-    </section>
+  <div class="layout">
 
-    <section id="logSection" style="display:none">
-      <h2>Log</h2>
-      <div id="terminalLog"></div>
-    </section>
+    <!-- ── Left Sidebar — Scan History ── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Scan History</h2>
+        <button onclick="loadHistory()">↺</button>
+      </div>
+      <div id="historyList">
+        <p class="no-data">No scans yet.</p>
+      </div>
+    </aside>
 
-    <div id="resultsGrid" style="display:none">
-
-      <!-- SSL/TLS Analysis -->
-      <section class="card" id="sslPanel">
-        <h2>SSL/TLS Analysis <span id="sslStatus"></span></h2>
-        <div id="sslBody"></div>
+    <!-- ── Main Content ── -->
+    <main>
+      <section class="input-section">
+        <input type="text" id="urlInput" placeholder="Enter URL e.g. example.com" />
+        <button id="scanBtn" onclick="startScan()">Analyze</button>
       </section>
 
-      <!-- Security Headers Analysis -->
-      <section class="card" id="securityPanel">
-        <h2>Security Headers <span id="securityStatus"></span></h2>
-        <div id="securityBody"></div>
+      <section id="logSection" style="display:none">
+        <h2>Log</h2>
+        <div id="terminalLog"></div>
       </section>
 
-      <!-- Screenshot -->
-      <section class="card" id="screenshotPanel">
-        <h2>Screenshot <span id="screenshotStatus"></span></h2>
-        <div id="screenshotBody"></div>
-      </section>
+      <div id="resultsGrid" style="display:none">
 
-      <!-- Port Scanning -->
-      <section class="card full-width" id="portsPanel">
-        <h2>Port Scanning <span id="portsStatus"></span></h2>
-        <div id="portsBody"></div>
-      </section>
+        <!-- SSL/TLS Analysis -->
+        <section class="card" id="sslPanel">
+          <h2>SSL/TLS Analysis <span id="sslStatus"></span></h2>
+          <div id="sslBody"></div>
+        </section>
 
-    </div>
-  </main>
+        <!-- Security Headers Analysis -->
+        <section class="card" id="securityPanel">
+          <h2>Security Headers <span id="securityStatus"></span></h2>
+          <div id="securityBody"></div>
+        </section>
+
+        <!-- Screenshot -->
+        <section class="card" id="screenshotPanel">
+          <h2>Screenshot <span id="screenshotStatus"></span></h2>
+          <div id="screenshotBody"></div>
+        </section>
+
+        <!-- Port Scanning -->
+        <section class="card full-width" id="portsPanel">
+          <h2>Port Scanning <span id="portsStatus"></span></h2>
+          <div id="portsBody"></div>
+        </section>
+
+      </div>
+    </main>
+
+  </div>
 
   <script src="/static/js/dashboard.js"></script>
 </body>

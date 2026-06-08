@@ -16,6 +16,7 @@ from app.modules import (
     scan_ports,
     capture_screenshot,
 )
+from app.database import save_scan
 
 router = APIRouter(prefix="/api", tags=["recon"])
 
@@ -46,3 +47,30 @@ async def api_ports(payload: ScanRequest):
 @router.post("/screenshot", response_model=ScreenshotResult)
 async def api_screenshot(payload: ScanRequest):
     return await capture_screenshot(payload.url)
+
+
+# ── Full Scan — সব modules একসাথে + MongoDB তে save ────────
+# POST /api/scan
+@router.post("/scan")
+async def api_full_scan(payload: ScanRequest):
+    # সব modules একসাথে চালাও
+    ssl_result, sec_result, ports_result, screenshot_result = await asyncio.gather(
+        asyncio.to_thread(analyze_ssl, payload.url),
+        asyncio.to_thread(analyze_security_headers, payload.url),
+        asyncio.to_thread(scan_ports, payload.url),
+        capture_screenshot(payload.url),
+    )
+
+    # সব result একটা dictionary তে রাখো
+    results = {
+        "ssl": ssl_result.model_dump(),
+        "security_headers": sec_result.model_dump(),
+        "ports": ports_result.model_dump(),
+        "screenshot": screenshot_result.model_dump(),
+    }
+
+    # MongoDB তে save করো
+    scan_id = await save_scan(payload.url, results)
+
+    # scan_id সহ result return করো
+    return {"scan_id": scan_id, **results}
