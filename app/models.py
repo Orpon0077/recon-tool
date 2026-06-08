@@ -54,3 +54,11 @@ class PortScanResult(BaseModel):
     open_ports: list[PortInfo] = []   # খোলা port গুলোর তালিকা
     total_open: int = 0               # মোট খোলা port এর সংখ্যা
     error: Optional[str] = None       # error হলে এখানে আসবে
+
+
+# ── Screenshot ─────────────────────────────────────────────
+# Website এর screenshot এর তথ্য রাখে
+class ScreenshotResult(BaseModel):          
+    url: str                                # URL এর screenshot
+    screenshot_path: Optional[str] = None  # screenshot file এর path
+    error: Optional[str] = None          # error হলে এখানে আসবে 

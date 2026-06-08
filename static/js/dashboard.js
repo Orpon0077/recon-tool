@@ -32,6 +32,7 @@ async function startScan() {
   log("Running SSL analysis...");
   log("Running Security Headers analysis...");
   log("Running Port Scan... (This may take a moment)");
+  log("Taking screenshot... (This may take a moment)");
 
   try {
     // ── SSL Analysis ─────────────────────────────────────
@@ -64,10 +65,21 @@ async function startScan() {
     const portsData = await portsResponse.json();
     log(`Port scan done! ${portsData.total_open} open ports found.`, "ok");
 
+    // ── Screenshot ────────────────────────────────────────
+    const ssResponse = await fetch("/api/screenshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: rawUrl }),
+    });
+    if (!ssResponse.ok) throw new Error(`Screenshot API error: ${ssResponse.status}`);
+    const ssData = await ssResponse.json();
+    log("Screenshot done!", "ok");
+
     // ── Results দেখাও ────────────────────────────────────
     renderSSL(sslData);
     renderSecurity(secData);
     renderPorts(portsData);
+    renderScreenshot(ssData);
 
     resultsGrid.style.display = "grid";
     statusLabel.textContent = "COMPLETE";
@@ -175,7 +187,6 @@ function renderPorts(data) {
     return;
   }
 
-  // Table বানাও
   const rows = data.open_ports.map(p => `
     <tr>
       <td><span class="port-num">${p.port}</span></td>
@@ -194,10 +205,35 @@ function renderPorts(data) {
           <th>Version / Banner</th>
         </tr>
       </thead>
-      <tbody>
-        ${rows}
-      </tbody>
+      <tbody>${rows}</tbody>
     </table>`;
+}
+
+// ── Screenshot Result দেখাও ───────────────────────────────
+function renderScreenshot(data) {
+  const body = document.getElementById("screenshotBody");
+  const status = document.getElementById("screenshotStatus");
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    status.textContent = "FAILED";
+    return;
+  }
+
+  if (!data.screenshot_path) {
+    body.innerHTML = `<p class="no-data">No screenshot captured.</p>`;
+    status.textContent = "N/A";
+    return;
+  }
+
+  status.textContent = "Captured";
+
+  body.innerHTML = `
+    <div class="screenshot-wrap">
+      <img src="/static/${esc(data.screenshot_path)}" alt="Screenshot of ${esc(data.url)}"
+           onerror="this.parentElement.innerHTML='<p class=no-data>Image failed to load.</p>'" />
+      <div class="screenshot-overlay">${esc(data.url)}</div>
+    </div>`;
 }
 
 // ── XSS থেকে রক্ষা করো ────────────────────────────────────

@@ -10,8 +10,12 @@ from .security_headers import analyze_security_headers
 # ── Port Scanning ──────────────────────────────────────────
 from .port_scanner import scan_ports
 
+# ── Screenshot ─────────────────────────────────────────────
+from .screenshot import capture_screenshot
+
 __all__ = [
     "analyze_ssl",
     "analyze_security_headers",
     "scan_ports",
+    "capture_screenshot",
 ]

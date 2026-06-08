@@ -3,8 +3,19 @@
 
 import asyncio
 from fastapi import APIRouter
-from app.models import ScanRequest, SSLResult, SecurityHeadersResult, PortScanResult
-from app.modules import analyze_ssl, analyze_security_headers, scan_ports
+from app.models import (
+    ScanRequest,
+    SSLResult,
+    SecurityHeadersResult,
+    PortScanResult,
+    ScreenshotResult,
+)
+from app.modules import (
+    analyze_ssl,
+    analyze_security_headers,
+    scan_ports,
+    capture_screenshot,
+)
 
 router = APIRouter(prefix="/api", tags=["recon"])
 
@@ -28,3 +39,10 @@ async def api_security_headers(payload: ScanRequest):
 @router.post("/ports", response_model=PortScanResult)
 async def api_ports(payload: ScanRequest):
     return await asyncio.to_thread(scan_ports, payload.url)
+
+
+# ── Screenshot ─────────────────────────────────────────────
+# POST /api/screenshot
+@router.post("/screenshot", response_model=ScreenshotResult)
+async def api_screenshot(payload: ScanRequest):
+    return await capture_screenshot(payload.url)
