@@ -1,3 +1,4 @@
+// ── Dashboard Controller ───────────────────────────────────
 const urlInput    = document.getElementById("urlInput");
 const scanBtn     = document.getElementById("scanBtn");
 const logSection  = document.getElementById("logSection");
@@ -29,23 +30,33 @@ async function startScan() {
 
   log(`Target: ${rawUrl}`);
   log("Running SSL analysis...");
+  log("Running Security Headers analysis...");
 
   try {
-    const response = await fetch("/api/ssl", {
+    const sslResponse = await fetch("/api/ssl", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: rawUrl }),
     });
+    if (!sslResponse.ok) throw new Error(`SSL API error: ${sslResponse.status}`);
+    const sslData = await sslResponse.json();
+    log("SSL analysis done!", "ok");
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const secResponse = await fetch("/api/security-headers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: rawUrl }),
+    });
+    if (!secResponse.ok) throw new Error(`Security Headers API error: ${secResponse.status}`);
+    const secData = await secResponse.json();
+    log("Security Headers analysis done!", "ok");
 
-    const data = await response.json();
-    log("Done!", "ok");
+    renderSSL(sslData);
+    renderSecurity(secData);
 
-    renderSSL(data);
-
-    resultsGrid.style.display = "flex";
+    resultsGrid.style.display = "grid";
     statusLabel.textContent = "COMPLETE";
+    log("All done!", "ok");
 
   } catch (err) {
     log(`Error: ${err.message}`, "error");
@@ -66,7 +77,6 @@ function renderSSL(data) {
   }
 
   const daysClass = data.days_remaining > 30 ? "ok" : data.days_remaining > 7 ? "warn" : "bad";
-
   status.textContent = data.is_expired ? "EXPIRED" : `${data.days_remaining} days left`;
 
   body.innerHTML = `
@@ -94,6 +104,40 @@ function renderSSL(data) {
       <span class="data-key">Expired</span>
       <span class="data-val ${data.is_expired ? 'bad' : 'ok'}">${data.is_expired ? "YES" : "NO"}</span>
     </div>`;
+}
+
+function renderSecurity(data) {
+  const body = document.getElementById("securityBody");
+  const status = document.getElementById("securityStatus");
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    status.textContent = "FAILED";
+    return;
+  }
+
+  const scoreClass = data.score >= 70 ? "ok" : data.score >= 40 ? "warn" : "bad";
+  status.textContent = `Score: ${data.score}/100`;
+
+  const present = data.present || {};
+  const missing = data.missing || [];
+
+  const presentHtml = Object.entries(present).map(([header, value]) => `
+    <div class="data-row">
+      <span class="data-key ok">✓ ${esc(header)}</span>
+      <span class="data-val">${esc(value.slice(0, 50))}${value.length > 50 ? '...' : ''}</span>
+    </div>`).join("");
+
+  const missingHtml = missing.map(header => `
+    <div class="data-row">
+      <span class="data-key bad">✗ ${esc(header)}</span>
+      <span class="data-val bad">Missing</span>
+    </div>`).join("");
+
+  body.innerHTML = `
+    <div class="score-box ${scoreClass}">Security Score: ${data.score}/100</div>
+    ${presentHtml}
+    ${missingHtml}`;
 }
 
 function esc(str) {

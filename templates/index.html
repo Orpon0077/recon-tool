@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang='en'>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Recon Tool</title>
+  <title>Recon Tool</title>
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
@@ -19,7 +19,6 @@
       <button id="scanBtn" onclick="startScan()">Analyze</button>
     </section>
 
-
     <section id="logSection" style="display:none">
       <h2>Log</h2>
       <div id="terminalLog"></div>
@@ -27,9 +26,16 @@
 
     <div id="resultsGrid" style="display:none">
 
+      <!-- SSL/TLS Analysis -->
       <section class="card" id="sslPanel">
         <h2>SSL/TLS Analysis <span id="sslStatus"></span></h2>
         <div id="sslBody"></div>
+      </section>
+
+      <!-- Security Headers Analysis -->
+      <section class="card" id="securityPanel">
+        <h2>Security Headers <span id="securityStatus"></span></h2>
+        <div id="securityBody"></div>
       </section>
 
     </div>

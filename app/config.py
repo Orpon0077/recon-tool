@@ -8,7 +8,7 @@ SCREENSHOTS_DIR = BASE_DIR/"static"/"screenshots"
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 REQUEST_TIMEOUT = 10
-REQUEST_HEADER = {
+REQUEST_HEADERS = {
      "User-Agent": (
          "Mozila/5.0 (X11; Linux x86_64)"
          "AppleWebKit/537.36 (KHTML, like Gecko)"

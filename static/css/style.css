@@ -123,3 +123,39 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 .no-data { color: #aaa; font-size: 0.85rem; font-style: italic; }
+
+/* ── Results Grid ─────────────────────────────────────────
+   সব result cards এখানে দেখায় */
+#resultsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* ── Score Box ────────────────────────────────────────────
+   Security score দেখানোর জন্য */
+.score-box {
+  padding: 10px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1rem;
+  margin-bottom: 12px;
+  border-radius: 4px;
+}
+
+/* Score এর রং — ভালো, মাঝারি, খারাপ */
+.score-box.ok   { background: #e6fff0; color: #00aa55; border: 1px solid #00aa55; }
+.score-box.warn { background: #fff8e6; color: #ff8800; border: 1px solid #ff8800; }
+.score-box.bad  { background: #fff0f0; color: #ff4444; border: 1px solid #ff4444; }
+
+/* ── Status Colors ────────────────────────────────────────
+   ok, warn, bad class এর color */
+.ok   { color: #00aa55; font-weight: bold; }
+.warn { color: #ff8800; font-weight: bold; }
+.bad  { color: #ff4444; font-weight: bold; }
+
+/* ── Responsive ───────────────────────────────────────────
+   Mobile এ একটা column */
+@media (max-width: 768px) {
+  #resultsGrid { grid-template-columns: 1fr; }
+}
