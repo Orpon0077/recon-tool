@@ -24,22 +24,18 @@ function log(text, type = "info") {
 // ── History load করো ──────────────────────────────────────
 async function loadHistory() {
   const historyList = document.getElementById("historyList");
-
   try {
     const response = await fetch("/api/history");
     const scans = await response.json();
-
     if (scans.length === 0) {
       historyList.innerHTML = `<p class="no-data">No scans yet.</p>`;
       return;
     }
-
     historyList.innerHTML = scans.map(scan => `
       <div class="history-item" onclick="loadScan('${scan.id}')">
         <div class="history-url">${esc(scan.url)}</div>
         <div class="history-time">${esc(scan.timestamp)}</div>
       </div>`).join("");
-
   } catch (err) {
     historyList.innerHTML = `<p class="no-data">Failed to load history.</p>`;
   }
@@ -50,19 +46,17 @@ async function loadScan(scanId) {
   try {
     const response = await fetch(`/api/history/${scanId}`);
     const data = await response.json();
-
     if (data.error) return;
 
-    // Results দেখাও
     renderSSL(data.results.ssl);
     renderSecurity(data.results.security_headers);
     renderPorts(data.results.ports);
     renderScreenshot(data.results.screenshot);
+    renderFirewall(data.results.firewall);
 
     resultsGrid.style.display = "grid";
     logSection.style.display = "none";
     statusLabel.textContent = "LOADED FROM HISTORY";
-
   } catch (err) {
     console.error("Failed to load scan:", err);
   }
@@ -84,7 +78,6 @@ async function startScan() {
   log("Port Scan may take a moment...");
 
   try {
-    // সব modules একসাথে চালাও — /api/scan endpoint
     const response = await fetch("/api/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,17 +90,16 @@ async function startScan() {
     log("All modules done!", "ok");
     log(`Saved to database. ID: ${data.scan_id}`, "ok");
 
-    // Results দেখাও
     renderSSL(data.ssl);
     renderSecurity(data.security_headers);
     renderPorts(data.ports);
     renderScreenshot(data.screenshot);
+    renderFirewall(data.firewall);
 
     resultsGrid.style.display = "grid";
     statusLabel.textContent = "COMPLETE";
     log("All done!", "ok");
 
-    // History refresh করো
     loadHistory();
 
   } catch (err) {
@@ -259,6 +251,40 @@ function renderScreenshot(data) {
            onerror="this.parentElement.innerHTML='<p class=no-data>Image failed to load.</p>'" />
       <div class="screenshot-overlay">${esc(data.url)}</div>
     </div>`;
+}
+
+// ── Firewall Result দেখাও ─────────────────────────────────
+function renderFirewall(data) {
+  const body = document.getElementById("firewallBody");
+  const status = document.getElementById("firewallStatus");
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    status.textContent = "FAILED";
+    return;
+  }
+
+  if (data.detected) {
+    status.textContent = data.firewall_name;
+    body.innerHTML = `
+      <div class="firewall-box detected">
+        ⚠ Firewall Detected: ${esc(data.firewall_name)}
+      </div>
+      <div class="data-row">
+        <span class="data-key">Evidence</span>
+        <span class="data-val">${esc(data.evidence)}</span>
+      </div>`;
+  } else {
+    status.textContent = "Not Detected";
+    body.innerHTML = `
+      <div class="firewall-box not-detected">
+        ✓ No Firewall Detected
+      </div>
+      <div class="data-row">
+        <span class="data-key">Evidence</span>
+        <span class="data-val">${esc(data.evidence)}</span>
+      </div>`;
+  }
 }
 
 // ── XSS থেকে রক্ষা করো ────────────────────────────────────

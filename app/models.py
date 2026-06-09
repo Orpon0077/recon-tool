@@ -62,3 +62,13 @@ class ScreenshotResult(BaseModel):
     url: str                                # URL এর screenshot
     screenshot_path: Optional[str] = None  # screenshot file এর path
     error: Optional[str] = None          # error হলে এখানে আসবে 
+
+
+# ── Firewall Detection ─────────────────────────────────────
+# WAF/Firewall detection এর তথ্য রাখে
+class FirewallResult(BaseModel):
+    url: str        
+    detected: bool = False              # WAF/Firewall পাওয়া গেছে কিনা
+    firewall_name: Optional[str] = None  # পাওয়া গেলে তার নাম
+    evidence: Optional[str] = None       # কীভাবে detect করা হয়েছে তার প্রমাণ
+    error: Optional[str] = None          # error হলে এখানে আসবে

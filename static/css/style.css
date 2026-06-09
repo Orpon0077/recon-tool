@@ -321,3 +321,26 @@ main {
   padding: 24px;
   overflow-y: auto;
 }
+
+/* ── Firewall Detection ───────────────────────────────────
+   Firewall detected/not detected box */
+.firewall-box {
+  padding: 10px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1rem;
+  margin-bottom: 12px;
+  border-radius: 4px;
+}
+
+.firewall-box.detected {
+  background: #fff0f0;
+  color: #ff4444;
+  border: 1px solid #ff4444;
+}
+
+.firewall-box.not-detected {
+  background: #e6fff0;
+  color: #00aa55;
+  border: 1px solid #00aa55;
+}

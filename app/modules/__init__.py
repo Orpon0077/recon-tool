@@ -13,9 +13,13 @@ from .port_scanner import scan_ports
 # ── Screenshot ─────────────────────────────────────────────
 from .screenshot import capture_screenshot
 
+# ── Firewall Detection ─────────────────────────────────────
+from .firewall_detection import detect_firewall
+
 __all__ = [
     "analyze_ssl",
     "analyze_security_headers",
     "scan_ports",
     "capture_screenshot",
+    "detect_firewall",
 ]

@@ -28,7 +28,7 @@ async def capture_screenshot(url: str) -> ScreenshotResult:
 
             await page.goto(
                 url,
-                wait_until="domcontentloaded",
+                wait_until="load",
                 timeout=SCREENSHOT_TIMEOUT_MS,
             )
 
@@ -37,7 +37,7 @@ async def capture_screenshot(url: str) -> ScreenshotResult:
             except Exception:
                 pass
 
-            await page.wait_for_timeout(10000)
+            await page.wait_for_timeout(20000)
             await page.evaluate("window.scrollTo(0, 0)")
             await page.wait_for_timeout(1000)
             await page.screenshot(path=str(output_path), full_page=False)
