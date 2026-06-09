@@ -344,3 +344,35 @@ main {
   color: #00aa55;
   border: 1px solid #00aa55;
 }
+
+
+/* ── Tech Detection ───────────────────────────────────────
+   Technology badges দেখানোর জন্য */
+.tech-category {
+  margin-bottom: 12px;
+}
+
+.tech-category-title {
+  font-size: 0.72rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.tech-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tech-badge {
+  padding: 4px 10px;
+  background: #1a1a2e;
+  color: white;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-family: monospace;
+}

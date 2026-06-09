@@ -15,7 +15,6 @@
 
   <div class="layout">
 
-    <!-- ── Left Sidebar — Scan History ── -->
     <aside class="sidebar">
       <div class="sidebar-header">
         <h2>Scan History</h2>
@@ -26,7 +25,6 @@
       </div>
     </aside>
 
-    <!-- ── Main Content ── -->
     <main>
       <section class="input-section">
         <input type="text" id="urlInput" placeholder="Enter URL e.g. example.com" />
@@ -46,7 +44,7 @@
           <div id="sslBody"></div>
         </section>
 
-        <!-- Security Headers Analysis -->
+        <!-- Security Headers -->
         <section class="card" id="securityPanel">
           <h2>Security Headers <span id="securityStatus"></span></h2>
           <div id="securityBody"></div>
@@ -62,6 +60,12 @@
         <section class="card" id="firewallPanel">
           <h2>Firewall Detection <span id="firewallStatus"></span></h2>
           <div id="firewallBody"></div>
+        </section>
+
+        <!-- Tech Detection -->
+        <section class="card" id="techPanel">
+          <h2>Tech Detection <span id="techStatus"></span></h2>
+          <div id="techBody"></div>
         </section>
 
         <!-- Port Scanning -->

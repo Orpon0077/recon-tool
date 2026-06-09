@@ -72,3 +72,12 @@ class FirewallResult(BaseModel):
     firewall_name: Optional[str] = None  # পাওয়া গেলে তার নাম
     evidence: Optional[str] = None       # কীভাবে detect করা হয়েছে তার প্রমাণ
     error: Optional[str] = None          # error হলে এখানে আসবে
+
+
+# ── Tech Detection ─────────────────────────────────────────
+# Website এ কোন technology use হচ্ছে সেটার তথ্য রাখে
+class TechDetectionResult(BaseModel):
+    url: str
+    technologies: dict[str, list[str]] = {}  # category → [tech names]
+    total_found: int = 0
+    error: Optional[str] = None

@@ -53,6 +53,7 @@ async function loadScan(scanId) {
     renderPorts(data.results.ports);
     renderScreenshot(data.results.screenshot);
     renderFirewall(data.results.firewall);
+    renderTech(data.results.tech);
 
     resultsGrid.style.display = "grid";
     logSection.style.display = "none";
@@ -95,6 +96,7 @@ async function startScan() {
     renderPorts(data.ports);
     renderScreenshot(data.screenshot);
     renderFirewall(data.firewall);
+    renderTech(data.tech);
 
     resultsGrid.style.display = "grid";
     statusLabel.textContent = "COMPLETE";
@@ -295,4 +297,33 @@ function esc(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// ── Tech Detection Result দেখাও ───────────────────────────
+function renderTech(data) {
+  const body = document.getElementById("techBody");
+  const status = document.getElementById("techStatus");
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    status.textContent = "FAILED";
+    return;
+  }
+
+  status.textContent = `${data.total_found} found`;
+
+  if (data.total_found === 0) {
+    body.innerHTML = `<p class="no-data">No technologies detected.</p>`;
+    return;
+  }
+
+  const categoriesHtml = Object.entries(data.technologies).map(([category, techs]) => `
+    <div class="tech-category">
+      <div class="tech-category-title">${esc(category)}</div>
+      <div class="tech-badges">
+        ${techs.map(tech => `<span class="tech-badge">${esc(tech)}</span>`).join("")}
+      </div>
+    </div>`).join("");
+
+  body.innerHTML = categoriesHtml;
 }

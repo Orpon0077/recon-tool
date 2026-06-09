@@ -10,6 +10,7 @@ from app.models import (
     PortScanResult,
     ScreenshotResult,
     FirewallResult,
+    TechDetectionResult,
 )
 from app.modules import (
     analyze_ssl,
@@ -17,6 +18,7 @@ from app.modules import (
     scan_ports,
     capture_screenshot,
     detect_firewall,
+    detect_technologies,
 )
 from app.database import save_scan
 
@@ -53,28 +55,32 @@ async def api_firewall(payload: ScanRequest):
     return await asyncio.to_thread(detect_firewall, payload.url)
 
 
-# ── Full Scan — সব modules একসাথে + MongoDB তে save ────────
+# ── Tech Detection ─────────────────────────────────────────
+@router.post("/tech", response_model=TechDetectionResult)
+async def api_tech(payload: ScanRequest):
+    return await asyncio.to_thread(detect_technologies, payload.url)
+
+
+# ── Full Scan ──────────────────────────────────────────────
 @router.post("/scan")
 async def api_full_scan(payload: ScanRequest):
-    # সব modules একসাথে চালাও
-    ssl_result, sec_result, ports_result, screenshot_result, firewall_result = await asyncio.gather(
+    ssl_result, sec_result, ports_result, screenshot_result, firewall_result, tech_result = await asyncio.gather(
         asyncio.to_thread(analyze_ssl, payload.url),
         asyncio.to_thread(analyze_security_headers, payload.url),
         asyncio.to_thread(scan_ports, payload.url),
         capture_screenshot(payload.url),
         asyncio.to_thread(detect_firewall, payload.url),
+        asyncio.to_thread(detect_technologies, payload.url),
     )
 
-    # সব result একটা dictionary তে রাখো
     results = {
         "ssl": ssl_result.model_dump(),
         "security_headers": sec_result.model_dump(),
         "ports": ports_result.model_dump(),
         "screenshot": screenshot_result.model_dump(),
         "firewall": firewall_result.model_dump(),
+        "tech": tech_result.model_dump(),
     }
 
-    # MongoDB তে save করো
     scan_id = await save_scan(payload.url, results)
-
     return {"scan_id": scan_id, **results}
