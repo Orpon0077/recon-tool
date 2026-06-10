@@ -13,6 +13,7 @@ urlInput.addEventListener("keydown", e => {
   if (e.key === "Enter") startScan();
 });
 
+// ── Log function ───────────────────────────────────────────
 function log(text, type = "info") {
   const line = document.createElement("span");
   line.className = `log-${type}`;
@@ -54,6 +55,7 @@ async function loadScan(scanId) {
     renderScreenshot(data.results.screenshot);
     renderFirewall(data.results.firewall);
     renderTech(data.results.tech);
+    renderCrawl(data.results.crawl);
 
     resultsGrid.style.display = "grid";
     logSection.style.display = "none";
@@ -76,7 +78,7 @@ async function startScan() {
 
   log(`Target: ${rawUrl}`);
   log("Running all modules...");
-  log("Port Scan may take a moment...");
+  log("Port Scan and Crawling may take a moment...");
 
   try {
     const response = await fetch("/api/scan", {
@@ -97,6 +99,7 @@ async function startScan() {
     renderScreenshot(data.screenshot);
     renderFirewall(data.firewall);
     renderTech(data.tech);
+    renderCrawl(data.crawl);
 
     resultsGrid.style.display = "grid";
     statusLabel.textContent = "COMPLETE";
@@ -116,96 +119,64 @@ async function startScan() {
 function renderSSL(data) {
   const body = document.getElementById("sslBody");
   const status = document.getElementById("sslStatus");
-
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
     status.textContent = "FAILED";
     return;
   }
-
   const daysClass = data.days_remaining > 30 ? "ok" : data.days_remaining > 7 ? "warn" : "bad";
   status.textContent = data.is_expired ? "EXPIRED" : `${data.days_remaining} days left`;
-
   body.innerHTML = `
-    <div class="data-row">
-      <span class="data-key">Issued To</span>
-      <span class="data-val">${esc(data.issued_to)}</span>
-    </div>
-    <div class="data-row">
-      <span class="data-key">Issued By</span>
-      <span class="data-val">${esc(data.issued_by)}</span>
-    </div>
-    <div class="data-row">
-      <span class="data-key">Valid From</span>
-      <span class="data-val">${esc(data.valid_from)}</span>
-    </div>
-    <div class="data-row">
-      <span class="data-key">Valid Until</span>
-      <span class="data-val">${esc(data.valid_until)}</span>
-    </div>
-    <div class="data-row">
-      <span class="data-key">Days Remaining</span>
-      <span class="data-val ${daysClass}">${data.days_remaining}</span>
-    </div>
-    <div class="data-row">
-      <span class="data-key">Expired</span>
-      <span class="data-val ${data.is_expired ? 'bad' : 'ok'}">${data.is_expired ? "YES" : "NO"}</span>
-    </div>`;
+    <div class="data-row"><span class="data-key">Issued To</span><span class="data-val">${esc(data.issued_to)}</span></div>
+    <div class="data-row"><span class="data-key">Issued By</span><span class="data-val">${esc(data.issued_by)}</span></div>
+    <div class="data-row"><span class="data-key">Valid From</span><span class="data-val">${esc(data.valid_from)}</span></div>
+    <div class="data-row"><span class="data-key">Valid Until</span><span class="data-val">${esc(data.valid_until)}</span></div>
+    <div class="data-row"><span class="data-key">Days Remaining</span><span class="data-val ${daysClass}">${data.days_remaining}</span></div>
+    <div class="data-row"><span class="data-key">Expired</span><span class="data-val ${data.is_expired ? 'bad' : 'ok'}">${data.is_expired ? "YES" : "NO"}</span></div>`;
 }
 
 // ── Security Headers Result দেখাও ─────────────────────────
 function renderSecurity(data) {
   const body = document.getElementById("securityBody");
   const status = document.getElementById("securityStatus");
-
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
     status.textContent = "FAILED";
     return;
   }
-
   const scoreClass = data.score >= 70 ? "ok" : data.score >= 40 ? "warn" : "bad";
   status.textContent = `Score: ${data.score}/100`;
-
   const present = data.present || {};
   const missing = data.missing || [];
-
   const presentHtml = Object.entries(present).map(([header, value]) => `
     <div class="data-row">
       <span class="data-key ok">✓ ${esc(header)}</span>
       <span class="data-val">${esc(value.slice(0, 50))}${value.length > 50 ? '...' : ''}</span>
     </div>`).join("");
-
   const missingHtml = missing.map(header => `
     <div class="data-row">
       <span class="data-key bad">✗ ${esc(header)}</span>
       <span class="data-val bad">Missing</span>
     </div>`).join("");
-
   body.innerHTML = `
     <div class="score-box ${scoreClass}">Security Score: ${data.score}/100</div>
-    ${presentHtml}
-    ${missingHtml}`;
+    ${presentHtml}${missingHtml}`;
 }
 
 // ── Port Scan Result দেখাও ────────────────────────────────
 function renderPorts(data) {
   const body = document.getElementById("portsBody");
   const status = document.getElementById("portsStatus");
-
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
     status.textContent = "FAILED";
     return;
   }
-
   status.textContent = `${data.total_open} open ports`;
-
   if (data.total_open === 0) {
     body.innerHTML = `<p class="no-data">No open ports found.</p>`;
     return;
   }
-
   const rows = data.open_ports.map(p => `
     <tr>
       <td><span class="port-num">${p.port}</span></td>
@@ -213,17 +184,9 @@ function renderPorts(data) {
       <td><span class="port-open">${esc(p.state)}</span></td>
       <td>${esc(p.version)}</td>
     </tr>`).join("");
-
   body.innerHTML = `
     <table class="port-table">
-      <thead>
-        <tr>
-          <th>Port</th>
-          <th>Service</th>
-          <th>State</th>
-          <th>Version / Banner</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 }
@@ -232,21 +195,17 @@ function renderPorts(data) {
 function renderScreenshot(data) {
   const body = document.getElementById("screenshotBody");
   const status = document.getElementById("screenshotStatus");
-
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
     status.textContent = "FAILED";
     return;
   }
-
   if (!data.screenshot_path) {
     body.innerHTML = `<p class="no-data">No screenshot captured.</p>`;
     status.textContent = "N/A";
     return;
   }
-
   status.textContent = "Captured";
-
   body.innerHTML = `
     <div class="screenshot-wrap">
       <img src="/static/${esc(data.screenshot_path)}" alt="Screenshot"
@@ -259,34 +218,90 @@ function renderScreenshot(data) {
 function renderFirewall(data) {
   const body = document.getElementById("firewallBody");
   const status = document.getElementById("firewallStatus");
-
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
     status.textContent = "FAILED";
     return;
   }
-
   if (data.detected) {
     status.textContent = data.firewall_name;
     body.innerHTML = `
-      <div class="firewall-box detected">
-        ⚠ Firewall Detected: ${esc(data.firewall_name)}
-      </div>
-      <div class="data-row">
-        <span class="data-key">Evidence</span>
-        <span class="data-val">${esc(data.evidence)}</span>
-      </div>`;
+      <div class="firewall-box detected">⚠ Firewall Detected: ${esc(data.firewall_name)}</div>
+      <div class="data-row"><span class="data-key">Evidence</span><span class="data-val">${esc(data.evidence)}</span></div>`;
   } else {
     status.textContent = "Not Detected";
     body.innerHTML = `
-      <div class="firewall-box not-detected">
-        ✓ No Firewall Detected
-      </div>
-      <div class="data-row">
-        <span class="data-key">Evidence</span>
-        <span class="data-val">${esc(data.evidence)}</span>
-      </div>`;
+      <div class="firewall-box not-detected">✓ No Firewall Detected</div>
+      <div class="data-row"><span class="data-key">Evidence</span><span class="data-val">${esc(data.evidence)}</span></div>`;
   }
+}
+
+// ── Tech Detection Result দেখাও ───────────────────────────
+function renderTech(data) {
+  const body = document.getElementById("techBody");
+  const status = document.getElementById("techStatus");
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    status.textContent = "FAILED";
+    return;
+  }
+  status.textContent = `${data.total_found} found`;
+  if (data.total_found === 0) {
+    body.innerHTML = `<p class="no-data">No technologies detected.</p>`;
+    return;
+  }
+  const categoriesHtml = Object.entries(data.technologies).map(([category, techs]) => `
+    <div class="tech-category">
+      <div class="tech-category-title">${esc(category)}</div>
+      <div class="tech-badges">
+        ${techs.map(tech => `<span class="tech-badge">${esc(tech)}</span>`).join("")}
+      </div>
+    </div>`).join("");
+  body.innerHTML = categoriesHtml;
+}
+
+// ── Crawl Result দেখাও ────────────────────────────────────
+function renderCrawl(data) {
+  const body = document.getElementById("crawlBody");
+  const status = document.getElementById("crawlStatus");
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    status.textContent = "FAILED";
+    return;
+  }
+  status.textContent = `${data.total_found} endpoints`;
+  if (data.total_found === 0) {
+    body.innerHTML = `<p class="no-data">No endpoints found.</p>`;
+    return;
+  }
+
+  const rows = data.endpoints.map(e => {
+    const statusClass = !e.status_code ? "" :
+      e.status_code < 300 ? "status-2xx" :
+      e.status_code < 400 ? "status-3xx" :
+      e.status_code < 500 ? "status-4xx" : "status-5xx";
+
+    return `
+      <tr>
+        <td><a href="${esc(e.url)}" target="_blank" style="color:#1a1a2e;">${esc(e.url)}</a></td>
+        <td><span class="port-open">${esc(e.method)}</span></td>
+        <td><span class="${statusClass}">${e.status_code || "N/A"}</span></td>
+        <td>${esc(e.content_type || "")}</td>
+      </tr>`;
+  }).join("");
+
+  body.innerHTML = `
+    <table class="crawl-table">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Method</th>
+          <th>Status</th>
+          <th>Content Type</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 // ── XSS থেকে রক্ষা করো ────────────────────────────────────
@@ -297,33 +312,4 @@ function esc(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-// ── Tech Detection Result দেখাও ───────────────────────────
-function renderTech(data) {
-  const body = document.getElementById("techBody");
-  const status = document.getElementById("techStatus");
-
-  if (data.error) {
-    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
-    status.textContent = "FAILED";
-    return;
-  }
-
-  status.textContent = `${data.total_found} found`;
-
-  if (data.total_found === 0) {
-    body.innerHTML = `<p class="no-data">No technologies detected.</p>`;
-    return;
-  }
-
-  const categoriesHtml = Object.entries(data.technologies).map(([category, techs]) => `
-    <div class="tech-category">
-      <div class="tech-category-title">${esc(category)}</div>
-      <div class="tech-badges">
-        ${techs.map(tech => `<span class="tech-badge">${esc(tech)}</span>`).join("")}
-      </div>
-    </div>`).join("");
-
-  body.innerHTML = categoriesHtml;
 }

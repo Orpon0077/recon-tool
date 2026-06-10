@@ -81,3 +81,20 @@ class TechDetectionResult(BaseModel):
     technologies: dict[str, list[str]] = {}  # category → [tech names]
     total_found: int = 0
     error: Optional[str] = None
+
+
+# ── Crawling ───────────────────────────────────────────────
+# প্রতিটা endpoint এর তথ্য রাখে
+
+class EndpointInfo(BaseModel):
+    url: str                            # Endpoint URL যেমন /login, /api/users ইত্যাদি
+    status_code: Optional[int] = None   # HTTP status code যেমন 200, 404 ইত্যাদি
+    method: str = "GET"                 # HTTP method যেমন GET, POST ইত্যাদি
+    content_type: Optional[str] = None  # Response এর content type যেমন text/html, application/json ইত্যাদি
+
+# সব endpoints এর result রাখে
+class CrawlResult(BaseModel):
+    url: str
+    endpoints: list[EndpointInfo] = []   # পাওয়া endpoints এর তালিকা
+    total_found: int = 0                   # মোট পাওয়া endpoints এর সংখ্যা
+    error: Optional[str] = None          # error হলে এখানে আসবে

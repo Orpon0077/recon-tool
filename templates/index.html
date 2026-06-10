@@ -15,6 +15,7 @@
 
   <div class="layout">
 
+    <!-- ── Left Sidebar — Scan History ── -->
     <aside class="sidebar">
       <div class="sidebar-header">
         <h2>Scan History</h2>
@@ -25,6 +26,7 @@
       </div>
     </aside>
 
+    <!-- ── Main Content ── -->
     <main>
       <section class="input-section">
         <input type="text" id="urlInput" placeholder="Enter URL e.g. example.com" />
@@ -72,6 +74,12 @@
         <section class="card full-width" id="portsPanel">
           <h2>Port Scanning <span id="portsStatus"></span></h2>
           <div id="portsBody"></div>
+        </section>
+
+        <!-- Crawling -->
+        <section class="card full-width" id="crawlPanel">
+          <h2>Crawling <span id="crawlStatus"></span></h2>
+          <div id="crawlBody"></div>
         </section>
 
       </div>

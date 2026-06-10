@@ -376,3 +376,38 @@ main {
   font-size: 0.75rem;
   font-family: monospace;
 }
+
+/* ── Crawling ─────────────────────────────────────────────
+   Endpoints table দেখানোর জন্য */
+.crawl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.crawl-table th {
+  text-align: left;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  color: #555;
+  font-weight: bold;
+  border-bottom: 2px solid #ddd;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+
+.crawl-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  word-break: break-all;
+}
+
+.crawl-table tr:last-child td { border-bottom: none; }
+.crawl-table tr:hover td { background: #f9f9f9; }
+
+/* Status code colors */
+.status-2xx { color: #00aa55; font-weight: bold; }
+.status-3xx { color: #ff8800; font-weight: bold; }
+.status-4xx { color: #ff4444; font-weight: bold; }
+.status-5xx { color: #cc0000; font-weight: bold; }
