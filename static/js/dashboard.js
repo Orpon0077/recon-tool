@@ -69,6 +69,10 @@ async function loadScan(scanId) {
     renderFirewall(data.results.firewall);
     renderTech(data.results.tech);
     renderCrawl(data.results.crawl);
+    
+    if (data.results.js_scanner) {
+      renderJSScanner(data.results.js_scanner);
+    }
 
     resultsGrid.style.display = "grid";
     logSection.style.display = "none";
@@ -78,12 +82,12 @@ async function loadScan(scanId) {
   }
 }
 
-// ── Main Scan Function (FIXED: null instead of empty string) ──
+// ── Main Scan Function ─────────────────────────────────────
 async function startScan() {
   let rawUrl = urlInput.value.trim();
   if (!rawUrl) { urlInput.focus(); return; }
 
-  // URL normalize - https:// যোগ করুন
+  // URL normalize
   let targetUrl = rawUrl;
   if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
     targetUrl = 'https://' + targetUrl;
@@ -95,7 +99,6 @@ async function startScan() {
   const customPortsEl = document.getElementById("customPorts");
   let customPorts = customPortsEl ? customPortsEl.value.trim() : "";
   
-  // FIX: খালি থাকলে null পাঠান (backend Optional[str] accept করে)
   if (customPorts === "") {
     customPorts = null;
   }
@@ -110,7 +113,6 @@ async function startScan() {
   log(`Port option: ${portOption.toUpperCase()}`);
   if (customPorts) log(`Custom ports: ${customPorts}`);
   log("Running all modules...");
-  log("Port Scan and Crawling may take a moment...");
 
   try {
     const response = await fetch("/api/scan", {
@@ -147,6 +149,36 @@ async function startScan() {
 
     loadHistory();
 
+    // ── JS Scanner ──
+    try {
+      log("Running JavaScript scanner...", "info");
+      const jsResponse = await fetch("/api/js-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          url: targetUrl, 
+          port_option: portOption, 
+          custom_ports: customPorts 
+        }),
+      });
+      const jsData = await jsResponse.json();
+      
+      if (jsData && !jsData.error) {
+        log(`JS Scan: ${jsData.total_js_files || 0} JS files found`, "ok");
+        renderJSScanner(jsData);
+        if (jsData.emails && jsData.emails.length > 0) {
+          log(`  📧 Found ${jsData.emails.length} email addresses`, "info");
+        }
+        if (jsData.internal_paths && jsData.internal_paths.length > 0) {
+          log(`  📁 Found ${jsData.internal_paths.length} internal paths`, "info");
+        }
+      } else if (jsData && jsData.error) {
+        log(`JS Scan error: ${jsData.error}`, "warn");
+      }
+    } catch (jsErr) {
+      log(`JS Scan failed: ${jsErr.message}`, "warn");
+    }
+
   } catch (err) {
     log(`Error: ${err.message}`, "error");
     statusLabel.textContent = "ERROR";
@@ -155,7 +187,7 @@ async function startScan() {
   }
 }
 
-// ── SSL Result দেখাও ──────────────────────────────────────
+// ── SSL Result ─────────────────────────────────────────────
 function renderSSL(data) {
   const body = document.getElementById("sslBody");
   const status = document.getElementById("sslStatus");
@@ -175,7 +207,7 @@ function renderSSL(data) {
     <div class="data-row"><span class="data-key">Expired</span><span class="data-val ${data.is_expired ? 'bad' : 'ok'}">${data.is_expired ? "YES" : "NO"}</span></div>`;
 }
 
-// ── Security Headers Result দেখাও ─────────────────────────
+// ── Security Headers Result ────────────────────────────────
 function renderSecurity(data) {
   const body = document.getElementById("securityBody");
   const status = document.getElementById("securityStatus");
@@ -203,35 +235,68 @@ function renderSecurity(data) {
     ${presentHtml}${missingHtml}`;
 }
 
-// ── Port Scan Result দেখাও ────────────────────────────────
+// ── Port Scan Result (with OS Detection) ───────────────────
 function renderPorts(data) {
   const body = document.getElementById("portsBody");
   const status = document.getElementById("portsStatus");
+  
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
     status.textContent = "FAILED";
     return;
   }
+  
   status.textContent = `${data.total_open} open ports`;
-  if (data.total_open === 0) {
-    body.innerHTML = `<p class="no-data">No open ports found.</p>`;
-    return;
+  
+  let html = "";
+  
+  // OS Detection Section
+  if (data.os_info && Object.keys(data.os_info).length > 0) {
+    html += `<div class="tech-category" style="margin-bottom: 15px; border: 1px solid #00ff88; background: #0d1210; border-radius: 4px;">
+      <div class="tech-category-title" style="color: #00ff88; padding: 8px;">💻 Operating System Detection</div>
+      <div class="tech-badges" style="padding: 8px;">`;
+    for (const [os, accuracy] of Object.entries(data.os_info)) {
+      let accuracyClass = accuracy >= 90 ? "ok" : (accuracy >= 70 ? "warn" : "bad");
+      html += `<span class="tech-badge" style="background: #1a1a2e; border: 1px solid #00ff88;">
+        🖥️ ${esc(os)} <span class="${accuracyClass}" style="font-size: 0.65rem;">(${accuracy}% accurate)</span>
+      </span>`;
+    }
+    html += `</div></div>`;
+  } else {
+    html += `<div class="tech-category" style="margin-bottom: 15px;">
+      <div class="tech-category-title">💻 OS Detection</div>
+      <div class="tech-badges">
+        <span class="tech-badge" style="background:#3d3d00;">Unable to determine OS (may be behind CDN/WAF)</span>
+      </div>
+    </div>`;
   }
-  const rows = data.open_ports.map(p => `
-    <tr>
-      <td><span class="port-num">${p.port}</span></td>
-      <td>${esc(p.service)}</td>
-      <td><span class="port-open">${esc(p.state)}</span></td>
-      <td>${esc(p.version)}</td>
-    </tr>`).join("");
-  body.innerHTML = `
-    <table class="port-table">
-      <thead><tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  
+  // Open ports table
+  if (data.total_open > 0) {
+    html += `<table class="port-table"><thead><tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr></thead><tbody>`;
+    data.open_ports.forEach(p => {
+      html += `<tr><td><span class="port-num">${p.port}</span></td><td>${esc(p.service)}</span></td>。<span class="port-open">${esc(p.state)}</span></td><td>${esc(p.version)}</span></tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<p class="no-data">No open ports found.</p>`;
+  }
+  
+  // Vulnerabilities (if any)
+  if (data.vulnerabilities && data.vulnerabilities.length > 0) {
+    html += `<div class="tech-category" style="margin-top: 15px;">
+      <div class="tech-category-title">⚠️ Vulnerabilities Found (${data.vulnerabilities.length})</div>
+      <div class="tech-badges">`;
+    data.vulnerabilities.forEach(v => {
+      html += `<span class="tech-badge" style="background:#3d0000; color:#ff4444;">Port ${v.port}: ${v.service}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  
+  body.innerHTML = html;
 }
 
-// ── Screenshot Result দেখাও ───────────────────────────────
+// ── Screenshot Result ──────────────────────────────────────
 function renderScreenshot(data) {
   const body = document.getElementById("screenshotBody");
   const status = document.getElementById("screenshotStatus");
@@ -254,7 +319,7 @@ function renderScreenshot(data) {
     </div>`;
 }
 
-// ── Firewall Result দেখাও ─────────────────────────────────
+// ── Firewall Result ────────────────────────────────────────
 function renderFirewall(data) {
   const body = document.getElementById("firewallBody");
   const status = document.getElementById("firewallStatus");
@@ -276,31 +341,68 @@ function renderFirewall(data) {
   }
 }
 
-// ── Tech Detection Result দেখাও ───────────────────────────
+// ── Tech Detection Result (FIXED - React এবং Next.js আলাদা) ──
 function renderTech(data) {
   const body = document.getElementById("techBody");
   const status = document.getElementById("techStatus");
+  
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
     status.textContent = "FAILED";
     return;
   }
+  
   status.textContent = `${data.total_found} found`;
+  
   if (data.total_found === 0) {
     body.innerHTML = `<p class="no-data">No technologies detected.</p>`;
     return;
   }
-  const categoriesHtml = Object.entries(data.technologies).map(([category, techs]) => `
-    <div class="tech-category">
-      <div class="tech-category-title">${esc(category)}</div>
-      <div class="tech-badges">
-        ${techs.map(tech => `<span class="tech-badge">${esc(tech)}</span>`).join("")}
+  
+  let categoriesHtml = "";
+  
+  for (const [category, techs] of Object.entries(data.technologies)) {
+    let techArray = Array.isArray(techs) ? techs : [techs];
+    let cleanedTechs = [];
+    
+    for (let tech of techArray) {
+      let techStr = String(tech);
+      
+      if (techStr === "ReactNext.js" || techStr === "Next.jsReact") {
+        if (!cleanedTechs.includes("React")) cleanedTechs.push("React");
+        if (!cleanedTechs.includes("Next.js")) cleanedTechs.push("Next.js");
+      }
+      else if (techStr.includes("React") && techStr.includes("Next.js")) {
+        if (!cleanedTechs.includes("React")) cleanedTechs.push("React");
+        if (!cleanedTechs.includes("Next.js")) cleanedTechs.push("Next.js");
+      }
+      else if (techStr.includes(",")) {
+        let parts = techStr.split(",").map(p => p.trim());
+        for (let part of parts) {
+          if (!cleanedTechs.includes(part)) cleanedTechs.push(part);
+        }
+      }
+      else {
+        if (!cleanedTechs.includes(techStr)) cleanedTechs.push(techStr);
+      }
+    }
+    
+    cleanedTechs = [...new Set(cleanedTechs.filter(t => t && t.length > 0))];
+    
+    categoriesHtml += `
+      <div class="tech-category">
+        <div class="tech-category-title">${esc(category)}</div>
+        <div class="tech-badges">
+          ${cleanedTechs.map(tech => `<span class="tech-badge">${esc(tech)}</span>`).join("")}
+        </div>
       </div>
-    </div>`).join("");
+    `;
+  }
+  
   body.innerHTML = categoriesHtml;
 }
 
-// ── Crawl Result দেখাও ────────────────────────────────────
+// ── Crawl Result ──────────────────────────────────────────
 function renderCrawl(data) {
   const body = document.getElementById("crawlBody");
   const status = document.getElementById("crawlStatus");
@@ -324,19 +426,76 @@ function renderCrawl(data) {
         <td><a href="${esc(e.url)}" target="_blank" style="color:#00ff88;">${esc(e.url)}</a></td>
         <td><span class="port-open">${esc(e.method)}</span></td>
         <td><span class="${statusClass}">${e.status_code || "N/A"}</span></td>
-        <td>${esc(e.content_type || "")}</td>
+        <td>${esc(e.content_type || "")}</span></td>
       </tr>`;
   }).join("");
   body.innerHTML = `
     <table class="crawl-table">
-      <thead>
-        <tr><th>URL</th><th>Method</th><th>Status</th><th>Content Type</th></tr>
-      </thead>
+      <thead><tr><th>URL</th><th>Method</th><th>Status</th><th>Content Type</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 }
 
-// ── XSS থেকে রক্ষা করো ────────────────────────────────────
+// ── JS Scanner Result ─────────────────────────────────────
+function renderJSScanner(data) {
+  const body = document.getElementById("jsScannerBody");
+  const status = document.getElementById("jsScannerStatus");
+  
+  if (!body) return;
+  
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    if (status) status.textContent = "FAILED";
+    return;
+  }
+  
+  if (status) status.textContent = `${data.total_js_files || 0} JS files`;
+  
+  let html = `
+    <div class="data-row">
+      <span class="data-key">Total JS Files</span>
+      <span class="data-val">${data.total_js_files || 0}</span>
+    </div>
+  `;
+  
+  if (data.emails && data.emails.length > 0) {
+    html += `<div class="tech-category">
+      <div class="tech-category-title">📧 Emails (${data.emails.length})</div>
+      <div class="tech-badges">`;
+    data.emails.forEach(email => {
+      html += `<span class="tech-badge">${esc(email)}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  
+  if (data.internal_paths && data.internal_paths.length > 0) {
+    html += `<div class="tech-category">
+      <div class="tech-category-title">📁 Internal Paths (${data.internal_paths.length})</div>
+      <div class="tech-badges">`;
+    data.internal_paths.slice(0, 15).forEach(path => {
+      html += `<span class="tech-badge">${esc(path)}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  
+  if (data.social_media && data.social_media.length > 0) {
+    html += `<div class="tech-category">
+      <div class="tech-category-title">📱 Social Media (${data.social_media.length})</div>
+      <div class="tech-badges">`;
+    data.social_media.forEach(social => {
+      html += `<span class="tech-badge">${esc(social)}</span>`;
+    });
+    html += `</div></div>`;
+  }
+  
+  if (data.total_js_files === 0 || (!data.emails?.length && !data.internal_paths?.length)) {
+    html += `<p class="no-data">No valuable information found in JavaScript files.</p>`;
+  }
+  
+  body.innerHTML = html;
+}
+
+// ── XSS Protection ────────────────────────────────────────
 function esc(str) {
   if (str == null) return "";
   return String(str)

@@ -54,12 +54,14 @@ class PortInfo(BaseModel):
     state: str = "open"
 
 
-# ── Port Scan Result ───────────────────────────────────────
+# ── Port Scan Result (UPDATED with vulnerabilities & os_info) ──
 class PortScanResult(BaseModel):
     url: str
     host: str
     open_ports: List[PortInfo] = []
     total_open: int = 0
+    vulnerabilities: List[dict] = []  # Nmap vulnerability detection results
+    os_info: dict = {}                # OS detection from Nmap
     error: Optional[str] = None
 
 
@@ -103,7 +105,7 @@ class CrawlResult(BaseModel):
     error: Optional[str] = None
 
 
-# ── Full Report (for combined scan) ────────────────────────
+# ── Full Report ────────────────────────────────────────────
 class FullReport(BaseModel):
     url: str
     ssl: SSLResult
@@ -113,3 +115,15 @@ class FullReport(BaseModel):
     firewall: FirewallResult
     tech: TechDetectionResult
     crawl: CrawlResult
+
+
+# ── JS Scanner Result ──────────────────────────────────────
+class JSScanResult(BaseModel):
+    total_js_files: int = 0
+    js_files: List[dict] = []
+    api_endpoints: List[str] = []
+    emails: List[str] = []
+    tokens: List[str] = []
+    internal_paths: List[str] = []
+    social_media: List[str] = []
+    error: Optional[str] = None

@@ -22,6 +22,9 @@ from .tech_detection import detect_technologies
 # ── Crawling ───────────────────────────────────────────────
 from .crawler import crawl_website
 
+# ── JS Scanner ─────────────────────────────────────────────
+from .js_scanner import scan_javascript
+
 __all__ = [
     "analyze_ssl",
     "analyze_security_headers",
@@ -30,4 +33,5 @@ __all__ = [
     "detect_firewall",
     "detect_technologies",
     "crawl_website",
+    "scan_javascript"
 ]

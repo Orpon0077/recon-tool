@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from app.models import (
     ScanRequest, FullReport, SSLResult, SecurityHeadersResult,
     PortScanResult, ScreenshotResult, FirewallResult,
-    TechDetectionResult, CrawlResult
+    TechDetectionResult, CrawlResult, JSScanResult
 )
 from app.modules import (
     analyze_ssl,
@@ -13,7 +13,8 @@ from app.modules import (
     capture_screenshot,
     detect_firewall,
     detect_technologies,
-    crawl_website
+    crawl_website,
+    scan_javascript
 )
 from app.database import save_scan, get_all_scans, get_scan_by_id
 
@@ -107,3 +108,12 @@ async def api_tech(payload: ScanRequest) -> TechDetectionResult:
 @router.post("/crawl")
 async def api_crawl(payload: ScanRequest) -> CrawlResult:
     return await asyncio.to_thread(crawl_website, payload.url)
+
+
+@router.post("/js-scan", response_model=JSScanResult)
+async def api_js_scan(payload: ScanRequest) -> JSScanResult:
+    """Scan JavaScript files for API endpoints, emails, tokens etc."""
+    result = await asyncio.to_thread(scan_javascript, payload.url)
+    if result.get("error"):
+        return JSScanResult(error=result["error"])
+    return JSScanResult(**result)
