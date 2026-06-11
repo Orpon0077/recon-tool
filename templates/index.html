@@ -3,90 +3,178 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Recon Tool</title>
+  <title>RECON // Web Reconnaissance Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="noise" aria-hidden="true"></div>
 
-  <header>
-    <h1>Recon Tool</h1>
-    <span id="statusLabel">IDLE</span>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-bracket">[</span>
+        <span class="logo-text">RECON</span>
+        <span class="logo-bracket">]</span>
+        <span class="logo-sub">WEB RECONNAISSANCE v1.0</span>
+      </div>
+      <div class="header-status">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-label" id="statusLabel">IDLE</span>
+      </div>
+    </div>
+    <div class="header-scan-bar"></div>
   </header>
 
-  <div class="layout">
+  <main class="main-content">
+    <div class="scan-layout">
+      <!-- Left Sidebar: History -->
+      <aside class="history-panel">
+        <div class="panel-header">
+          <span class="panel-title">SCAN HISTORY</span>
+          <span class="panel-tag">// last 20</span>
+        </div>
+        <div class="history-list" id="historyList">
+          <p class="no-data">Loading history...</p>
+        </div>
+      </aside>
 
-    <!-- ── Left Sidebar — Scan History ── -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <h2>Scan History</h2>
-        <button onclick="loadHistory()">↺</button>
+      <!-- Right Side: Main Content -->
+      <div class="scan-main">
+        <section class="panel input-panel">
+          <div class="panel-header">
+            <span class="panel-title">TARGET ACQUISITION</span>
+            <span class="panel-tag">// input</span>
+          </div>
+          <div class="input-row">
+            <div class="url-input-wrap">
+              <span class="input-prefix">URL://</span>
+              <input type="text" id="urlInput" class="url-input" placeholder="example.com" autocomplete="off" spellcheck="false" />
+            </div>
+            <button class="btn-scan" id="scanBtn" onclick="startScan()">
+              <span class="btn-text">GENERATE REPORT</span>
+              <span class="btn-arrow">▶</span>
+            </button>
+          </div>
+          
+          <!-- Port Scan Options -->
+          <div class="port-options" style="margin-top: 15px; padding: 10px 16px; border-top: 1px solid #1a2e20; background: #0d1210;">
+            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+              <span style="color: #00ff88; font-family: 'Share Tech Mono', monospace; font-size: 0.75rem;">PORT SCAN:</span>
+              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
+                <input type="radio" name="portOption" value="top10" checked> Top 10
+              </label>
+              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
+                <input type="radio" name="portOption" value="top50"> Top 50
+              </label>
+              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
+                <input type="radio" name="portOption" value="top100"> Top 100
+              </label>
+              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
+                <input type="radio" name="portOption" value="custom" id="customPortRadio"> Custom
+              </label>
+              <input type="text" id="customPorts" placeholder="e.g., 80,443,8080,3000" disabled style="background: #050807; border: 1px solid #3a4a40; color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; padding: 5px 10px; border-radius: 2px; width: 200px;">
+            </div>
+          </div>
+        </section>
+
+        <section class="panel log-panel" id="logSection" style="display:none">
+          <div class="panel-header">
+            <span class="panel-title">TERMINAL OUTPUT</span>
+            <span class="panel-tag">// live</span>
+          </div>
+          <div class="terminal-log" id="terminalLog"></div>
+        </section>
+
+        <div class="results-grid" id="resultsGrid" style="display:none">
+          <!-- SSL -->
+          <section class="panel result-panel" id="sslPanel">
+            <div class="panel-header">
+              <span class="panel-title">SSL/TLS ANALYSIS</span>
+              <span class="panel-status" id="sslStatus"></span>
+            </div>
+            <div class="panel-body" id="sslBody"></div>
+          </section>
+
+          <!-- Security Headers -->
+          <section class="panel result-panel" id="securityPanel">
+            <div class="panel-header">
+              <span class="panel-title">SECURITY HEADERS</span>
+              <span class="panel-status" id="securityStatus"></span>
+            </div>
+            <div class="panel-body" id="securityBody"></div>
+          </section>
+
+          <!-- Port Scan -->
+          <section class="panel result-panel" id="portsPanel">
+            <div class="panel-header">
+              <span class="panel-title">PORT SCANNING</span>
+              <span class="panel-status" id="portsStatus"></span>
+            </div>
+            <div class="panel-body" id="portsBody"></div>
+          </section>
+
+          <!-- Screenshot -->
+          <section class="panel result-panel screenshot-panel" id="screenshotPanel">
+            <div class="panel-header">
+              <span class="panel-title">VISUAL CAPTURE</span>
+              <span class="panel-status" id="screenshotStatus"></span>
+            </div>
+            <div class="panel-body" id="screenshotBody"></div>
+          </section>
+
+          <!-- Firewall -->
+          <section class="panel result-panel" id="firewallPanel">
+            <div class="panel-header">
+              <span class="panel-title">FIREWALL DETECTION</span>
+              <span class="panel-status" id="firewallStatus"></span>
+            </div>
+            <div class="panel-body" id="firewallBody"></div>
+          </section>
+
+          <!-- Tech Detection -->
+          <section class="panel result-panel" id="techPanel">
+            <div class="panel-header">
+              <span class="panel-title">TECH DETECTION</span>
+              <span class="panel-status" id="techStatus"></span>
+            </div>
+            <div class="panel-body" id="techBody"></div>
+          </section>
+
+          <!-- Crawl -->
+          <section class="panel result-panel crawl-panel" id="crawlPanel">
+            <div class="panel-header">
+              <span class="panel-title">CRAWL RESULTS</span>
+              <span class="panel-status" id="crawlStatus"></span>
+            </div>
+            <div class="panel-body" id="crawlBody"></div>
+          </section>
+        </div>
       </div>
-      <div id="historyList">
-        <p class="no-data">No scans yet.</p>
-      </div>
-    </aside>
+    </div>
+  </main>
 
-    <!-- ── Main Content ── -->
-    <main>
-      <section class="input-section">
-        <input type="text" id="urlInput" placeholder="Enter URL e.g. example.com" />
-        <button id="scanBtn" onclick="startScan()">Analyze</button>
-      </section>
-
-      <section id="logSection" style="display:none">
-        <h2>Log</h2>
-        <div id="terminalLog"></div>
-      </section>
-
-      <div id="resultsGrid" style="display:none">
-
-        <!-- SSL/TLS Analysis -->
-        <section class="card" id="sslPanel">
-          <h2>SSL/TLS Analysis <span id="sslStatus"></span></h2>
-          <div id="sslBody"></div>
-        </section>
-
-        <!-- Security Headers -->
-        <section class="card" id="securityPanel">
-          <h2>Security Headers <span id="securityStatus"></span></h2>
-          <div id="securityBody"></div>
-        </section>
-
-        <!-- Screenshot -->
-        <section class="card" id="screenshotPanel">
-          <h2>Screenshot <span id="screenshotStatus"></span></h2>
-          <div id="screenshotBody"></div>
-        </section>
-
-        <!-- Firewall Detection -->
-        <section class="card" id="firewallPanel">
-          <h2>Firewall Detection <span id="firewallStatus"></span></h2>
-          <div id="firewallBody"></div>
-        </section>
-
-        <!-- Tech Detection -->
-        <section class="card" id="techPanel">
-          <h2>Tech Detection <span id="techStatus"></span></h2>
-          <div id="techBody"></div>
-        </section>
-
-        <!-- Port Scanning -->
-        <section class="card full-width" id="portsPanel">
-          <h2>Port Scanning <span id="portsStatus"></span></h2>
-          <div id="portsBody"></div>
-        </section>
-
-        <!-- Crawling -->
-        <section class="card full-width" id="crawlPanel">
-          <h2>Crawling <span id="crawlStatus"></span></h2>
-          <div id="crawlBody"></div>
-        </section>
-
-      </div>
-    </main>
-
-  </div>
+  <footer class="site-footer">
+    <span>RECON DASHBOARD // MODULAR WEB INTELLIGENCE</span>
+    <span class="footer-right">FastAPI · Playwright · BeautifulSoup4</span>
+  </footer>
 
   <script src="/static/js/dashboard.js"></script>
+  <script>
+    // Port option custom field handler
+    document.addEventListener("DOMContentLoaded", function() {
+      const customRadio = document.getElementById("customPortRadio");
+      const customInput = document.getElementById("customPorts");
+      if (customRadio && customInput) {
+        customRadio.addEventListener("change", function() {
+          customInput.disabled = !this.checked;
+        });
+        customInput.disabled = !customRadio.checked;
+      }
+    });
+  </script>
 </body>
 </html>

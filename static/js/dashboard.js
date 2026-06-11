@@ -6,6 +6,19 @@ const terminalLog = document.getElementById("terminalLog");
 const resultsGrid = document.getElementById("resultsGrid");
 const statusLabel = document.getElementById("statusLabel");
 
+// ── Port Option Handler ───────────────────────────────────
+document.addEventListener("DOMContentLoaded", function() {
+  const customRadio = document.getElementById("customPortRadio");
+  const customInput = document.getElementById("customPorts");
+  
+  if (customRadio && customInput) {
+    customRadio.addEventListener("change", function() {
+      customInput.disabled = !this.checked;
+    });
+    customInput.disabled = !customRadio.checked;
+  }
+});
+
 // Page load হলে history দেখাও
 window.onload = () => loadHistory();
 
@@ -65,10 +78,27 @@ async function loadScan(scanId) {
   }
 }
 
-// ── Main Scan Function ─────────────────────────────────────
+// ── Main Scan Function (FIXED: null instead of empty string) ──
 async function startScan() {
-  const rawUrl = urlInput.value.trim();
+  let rawUrl = urlInput.value.trim();
   if (!rawUrl) { urlInput.focus(); return; }
+
+  // URL normalize - https:// যোগ করুন
+  let targetUrl = rawUrl;
+  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+    targetUrl = 'https://' + targetUrl;
+  }
+
+  // Port options
+  const portOptionEl = document.querySelector('input[name="portOption"]:checked');
+  const portOption = portOptionEl ? portOptionEl.value : "top50";
+  const customPortsEl = document.getElementById("customPorts");
+  let customPorts = customPortsEl ? customPortsEl.value.trim() : "";
+  
+  // FIX: খালি থাকলে null পাঠান (backend Optional[str] accept করে)
+  if (customPorts === "") {
+    customPorts = null;
+  }
 
   terminalLog.innerHTML = "";
   logSection.style.display = "block";
@@ -76,7 +106,9 @@ async function startScan() {
   scanBtn.disabled = true;
   statusLabel.textContent = "SCANNING...";
 
-  log(`Target: ${rawUrl}`);
+  log(`Target: ${targetUrl}`);
+  log(`Port option: ${portOption.toUpperCase()}`);
+  if (customPorts) log(`Custom ports: ${customPorts}`);
   log("Running all modules...");
   log("Port Scan and Crawling may take a moment...");
 
@@ -84,10 +116,18 @@ async function startScan() {
     const response = await fetch("/api/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: rawUrl }),
+      body: JSON.stringify({
+        url: targetUrl,
+        port_option: portOption,
+        custom_ports: customPorts,
+      }),
     });
 
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      log(`API Error: ${response.status} - ${errorText}`, "error");
+      throw new Error(`API error: ${response.status}`);
+    }
 
     const data = await response.json();
     log("All modules done!", "ok");
@@ -274,31 +314,23 @@ function renderCrawl(data) {
     body.innerHTML = `<p class="no-data">No endpoints found.</p>`;
     return;
   }
-
   const rows = data.endpoints.map(e => {
     const statusClass = !e.status_code ? "" :
       e.status_code < 300 ? "status-2xx" :
       e.status_code < 400 ? "status-3xx" :
       e.status_code < 500 ? "status-4xx" : "status-5xx";
-
     return `
       <tr>
-        <td><a href="${esc(e.url)}" target="_blank" style="color:#1a1a2e;">${esc(e.url)}</a></td>
+        <td><a href="${esc(e.url)}" target="_blank" style="color:#00ff88;">${esc(e.url)}</a></td>
         <td><span class="port-open">${esc(e.method)}</span></td>
         <td><span class="${statusClass}">${e.status_code || "N/A"}</span></td>
         <td>${esc(e.content_type || "")}</td>
       </tr>`;
   }).join("");
-
   body.innerHTML = `
     <table class="crawl-table">
       <thead>
-        <tr>
-          <th>URL</th>
-          <th>Method</th>
-          <th>Status</th>
-          <th>Content Type</th>
-        </tr>
+        <tr><th>URL</th><th>Method</th><th>Status</th><th>Content Type</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`;

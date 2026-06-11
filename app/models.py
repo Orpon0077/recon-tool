@@ -1,100 +1,115 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Optional, List, Dict
 
-
-# ── Request Model ──────────────────────────────────────────
-# User যে URL পাঠাবে সেটার ছাঁচ
+# ── Scan Request ───────────────────────────────────────────
 class ScanRequest(BaseModel):
     url: str
+    port_option: str = "top50"
+    custom_ports: Optional[str] = None
 
     @field_validator("url")
     @classmethod
-    def normalise_url(cls, v: str) -> str:
+    def normalize_url(cls, v: str) -> str:
         v = v.strip()
         if not v.startswith(("http://", "https://")):
             v = "https://" + v
         return v
 
+    @field_validator("custom_ports", mode="before")
+    @classmethod
+    def handle_custom_ports(cls, v):
+        if v is None:
+            return None
+        if v == "":
+            return None
+        return str(v)
 
-# ── SSL/TLS Analysis ───────────────────────────────────────
-# SSL certificate এর তথ্য রাখে
+
+# ── SSL Result ─────────────────────────────────────────────
 class SSLResult(BaseModel):
     url: str
-    issued_to: Optional[str] = None       # certificate কাকে দেওয়া হয়েছে
-    issued_by: Optional[str] = None       # কোন authority দিয়েছে
-    valid_from: Optional[str] = None      # কবে থেকে valid
-    valid_until: Optional[str] = None     # কবে পর্যন্ত valid
-    days_remaining: Optional[int] = None  # কতদিন বাকি
-    is_expired: Optional[bool] = None     # মেয়াদ শেষ কিনা
-    error: Optional[str] = None           # error হলে এখানে আসবে
+    issued_to: Optional[str] = None
+    issued_by: Optional[str] = None
+    valid_from: Optional[str] = None
+    valid_until: Optional[str] = None
+    days_remaining: Optional[int] = None
+    is_expired: bool = False
+    error: Optional[str] = None
 
 
-# ── Security Headers Analysis ─────────────────────────────────
-#Security header এর তথ্য রাখে
+# ── Security Headers Result ─────────────────────────────────
 class SecurityHeadersResult(BaseModel):
     url: str
-    present: dict[str, str] = {}              # পাওয়া security headers
-    missing: list[str] = []          # অনুপস্থিত security headers
-    score: int = 0                             # security headers এর স্কোর (0-100)
-    error: Optional[str] = None           # error হলে এখানে আসবে
+    score: int = 0
+    present: Dict[str, str] = {}
+    missing: List[str] = []
+    error: Optional[str] = None
 
 
-# ── Port Scanning ──────────────────────────────────────────
-# প্রতিটা open port এর তথ্য রাখে
+# ── Port Info ──────────────────────────────────────────────
 class PortInfo(BaseModel):
-    port: int                       # port নম্বর
-    service: Optional[str] = None   # কোন সার্ভিস চলছে
-    version: Optional[str] = None   # সার্ভিসের version
-    state: str = "open"             # port এর অবস্থা (open/closed/filtered)
+    port: int
+    service: str
+    version: str
+    state: str = "open"
 
-# Port scanning এর ফলাফল রাখে
+
+# ── Port Scan Result ───────────────────────────────────────
 class PortScanResult(BaseModel):
     url: str
-    host: Optional[str] = None        # hostname যেমন example.com
-    open_ports: list[PortInfo] = []   # খোলা port গুলোর তালিকা
-    total_open: int = 0               # মোট খোলা port এর সংখ্যা
-    error: Optional[str] = None       # error হলে এখানে আসবে
+    host: str
+    open_ports: List[PortInfo] = []
+    total_open: int = 0
+    error: Optional[str] = None
 
 
-# ── Screenshot ─────────────────────────────────────────────
-# Website এর screenshot এর তথ্য রাখে
-class ScreenshotResult(BaseModel):          
-    url: str                                # URL এর screenshot
-    screenshot_path: Optional[str] = None  # screenshot file এর path
-    error: Optional[str] = None          # error হলে এখানে আসবে 
+# ── Screenshot Result ──────────────────────────────────────
+class ScreenshotResult(BaseModel):
+    url: str
+    screenshot_path: Optional[str] = None
+    error: Optional[str] = None
 
 
-# ── Firewall Detection ─────────────────────────────────────
-# WAF/Firewall detection এর তথ্য রাখে
+# ── Firewall Result ────────────────────────────────────────
 class FirewallResult(BaseModel):
-    url: str        
-    detected: bool = False              # WAF/Firewall পাওয়া গেছে কিনা
-    firewall_name: Optional[str] = None  # পাওয়া গেলে তার নাম
-    evidence: Optional[str] = None       # কীভাবে detect করা হয়েছে তার প্রমাণ
-    error: Optional[str] = None          # error হলে এখানে আসবে
+    url: str
+    detected: bool = False
+    firewall_name: Optional[str] = None
+    evidence: str = "No firewall detected"
+    error: Optional[str] = None
 
 
-# ── Tech Detection ─────────────────────────────────────────
-# Website এ কোন technology use হচ্ছে সেটার তথ্য রাখে
+# ── Tech Detection Result ──────────────────────────────────
 class TechDetectionResult(BaseModel):
     url: str
-    technologies: dict[str, list[str]] = {}  # category → [tech names]
+    technologies: Dict[str, List[str]] = {}
     total_found: int = 0
     error: Optional[str] = None
 
 
-# ── Crawling ───────────────────────────────────────────────
-# প্রতিটা endpoint এর তথ্য রাখে
-
+# ── Endpoint Info ──────────────────────────────────────────
 class EndpointInfo(BaseModel):
-    url: str                            # Endpoint URL যেমন /login, /api/users ইত্যাদি
-    status_code: Optional[int] = None   # HTTP status code যেমন 200, 404 ইত্যাদি
-    method: str = "GET"                 # HTTP method যেমন GET, POST ইত্যাদি
-    content_type: Optional[str] = None  # Response এর content type যেমন text/html, application/json ইত্যাদি
+    url: str
+    method: str = "GET"
+    status_code: Optional[int] = None
+    content_type: Optional[str] = None
 
-# সব endpoints এর result রাখে
+
+# ── Crawl Result ───────────────────────────────────────────
 class CrawlResult(BaseModel):
     url: str
-    endpoints: list[EndpointInfo] = []   # পাওয়া endpoints এর তালিকা
-    total_found: int = 0                   # মোট পাওয়া endpoints এর সংখ্যা
-    error: Optional[str] = None          # error হলে এখানে আসবে
+    endpoints: List[EndpointInfo] = []
+    total_found: int = 0
+    error: Optional[str] = None
+
+
+# ── Full Report (for combined scan) ────────────────────────
+class FullReport(BaseModel):
+    url: str
+    ssl: SSLResult
+    security_headers: SecurityHeadersResult
+    ports: PortScanResult
+    screenshot: ScreenshotResult
+    firewall: FirewallResult
+    tech: TechDetectionResult
+    crawl: CrawlResult
