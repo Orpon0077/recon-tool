@@ -73,6 +73,9 @@ async function loadScan(scanId) {
     if (data.results.js_scanner) {
       renderJSScanner(data.results.js_scanner);
     }
+    if (data.results.subdomains) {
+      renderSubdomains(data.results.subdomains);
+    }
 
     resultsGrid.style.display = "grid";
     logSection.style.display = "none";
@@ -95,7 +98,7 @@ async function startScan() {
 
   // Port options
   const portOptionEl = document.querySelector('input[name="portOption"]:checked');
-  const portOption = portOptionEl ? portOptionEl.value : "top50";
+  const portOption = portOptionEl ? portOptionEl.value : "top1000";
   const customPortsEl = document.getElementById("customPorts");
   let customPorts = customPortsEl ? customPortsEl.value.trim() : "";
   
@@ -155,11 +158,7 @@ async function startScan() {
       const jsResponse = await fetch("/api/js-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          url: targetUrl, 
-          port_option: portOption, 
-          custom_ports: customPorts 
-        }),
+        body: JSON.stringify({ url: targetUrl, port_option: portOption, custom_ports: customPorts }),
       });
       const jsData = await jsResponse.json();
       
@@ -177,6 +176,31 @@ async function startScan() {
       }
     } catch (jsErr) {
       log(`JS Scan failed: ${jsErr.message}`, "warn");
+    }
+
+    // ── Subdomain Discovery ──
+    try {
+      log("Running subdomain discovery...", "info");
+      const subResponse = await fetch("/api/subdomains", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: targetUrl, port_option: portOption, custom_ports: customPorts }),
+      });
+      const subData = await subResponse.json();
+      
+      if (subData && !subData.error) {
+        log(`Subdomains: ${subData.total_found || 0} found`, "ok");
+        renderSubdomains(subData);
+        if (subData.subdomains && subData.subdomains.length > 0) {
+          subData.subdomains.forEach(sd => {
+            log(`  🌐 ${sd.subdomain} → ${sd.ip}`, "info");
+          });
+        }
+      } else if (subData && subData.error) {
+        log(`Subdomain error: ${subData.error}`, "warn");
+      }
+    } catch (subErr) {
+      log(`Subdomain discovery failed: ${subErr.message}`, "warn");
     }
 
   } catch (err) {
@@ -277,20 +301,9 @@ function renderPorts(data) {
     data.open_ports.forEach(p => {
       html += `<tr><td><span class="port-num">${p.port}</span></td><td>${esc(p.service)}</span></td>。<span class="port-open">${esc(p.state)}</span></td><td>${esc(p.version)}</span></tr>`;
     });
-    html += `</tbody></table>`;
+    html += `</tbody><tr>`;
   } else {
     html += `<p class="no-data">No open ports found.</p>`;
-  }
-  
-  // Vulnerabilities (if any)
-  if (data.vulnerabilities && data.vulnerabilities.length > 0) {
-    html += `<div class="tech-category" style="margin-top: 15px;">
-      <div class="tech-category-title">⚠️ Vulnerabilities Found (${data.vulnerabilities.length})</div>
-      <div class="tech-badges">`;
-    data.vulnerabilities.forEach(v => {
-      html += `<span class="tech-badge" style="background:#3d0000; color:#ff4444;">Port ${v.port}: ${v.service}</span>`;
-    });
-    html += `</div></div>`;
   }
   
   body.innerHTML = html;
@@ -341,7 +354,7 @@ function renderFirewall(data) {
   }
 }
 
-// ── Tech Detection Result (FIXED - React এবং Next.js আলাদা) ──
+// ── Tech Detection Result ──────────────────────────────────
 function renderTech(data) {
   const body = document.getElementById("techBody");
   const status = document.getElementById("techStatus");
@@ -375,12 +388,6 @@ function renderTech(data) {
       else if (techStr.includes("React") && techStr.includes("Next.js")) {
         if (!cleanedTechs.includes("React")) cleanedTechs.push("React");
         if (!cleanedTechs.includes("Next.js")) cleanedTechs.push("Next.js");
-      }
-      else if (techStr.includes(",")) {
-        let parts = techStr.split(",").map(p => p.trim());
-        for (let part of parts) {
-          if (!cleanedTechs.includes(part)) cleanedTechs.push(part);
-        }
       }
       else {
         if (!cleanedTechs.includes(techStr)) cleanedTechs.push(techStr);
@@ -433,7 +440,7 @@ function renderCrawl(data) {
     <table class="crawl-table">
       <thead><tr><th>URL</th><th>Method</th><th>Status</th><th>Content Type</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    <table>`;
 }
 
 // ── JS Scanner Result ─────────────────────────────────────
@@ -478,20 +485,43 @@ function renderJSScanner(data) {
     html += `</div></div>`;
   }
   
-  if (data.social_media && data.social_media.length > 0) {
-    html += `<div class="tech-category">
-      <div class="tech-category-title">📱 Social Media (${data.social_media.length})</div>
-      <div class="tech-badges">`;
-    data.social_media.forEach(social => {
-      html += `<span class="tech-badge">${esc(social)}</span>`;
-    });
-    html += `</div></div>`;
-  }
-  
   if (data.total_js_files === 0 || (!data.emails?.length && !data.internal_paths?.length)) {
     html += `<p class="no-data">No valuable information found in JavaScript files.</p>`;
   }
   
+  body.innerHTML = html;
+}
+
+// ── Subdomain Discovery Result ─────────────────────────────
+function renderSubdomains(data) {
+  const body = document.getElementById("subdomainBody");
+  const status = document.getElementById("subdomainStatus");
+  
+  if (!body) return;
+  
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    if (status) status.textContent = "FAILED";
+    return;
+  }
+  
+  if (status) status.textContent = `${data.total_found || 0} subdomains`;
+  
+  if (data.total_found === 0 || !data.subdomains || data.subdomains.length === 0) {
+    body.innerHTML = `<p class="no-data">No subdomains found.</p>`;
+    return;
+  }
+  
+  let html = `<div class="tech-category"><div class="tech-badges" style="display: flex; flex-direction: column; gap: 8px;">`;
+  
+  data.subdomains.forEach(sd => {
+    html += `<div class="tech-badge" style="display: flex; justify-content: space-between; width: 100%; background: #1a1a2e;">
+      <span>🌐 ${esc(sd.subdomain)}</span>
+      <span style="color: #00ff88;">→ ${esc(sd.ip)}</span>
+    </div>`;
+  });
+  
+  html += `</div></div>`;
   body.innerHTML = html;
 }
 

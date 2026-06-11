@@ -62,21 +62,19 @@
           
           <!-- Port Scan Options -->
           <div class="port-options" style="margin-top: 15px; padding: 10px 16px; border-top: 1px solid #1a2e20; background: #0d1210;">
-            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
               <span style="color: #00ff88; font-family: 'Share Tech Mono', monospace; font-size: 0.75rem;">PORT SCAN:</span>
-              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
-                <input type="radio" name="portOption" value="top10" checked> Top 10
+              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; cursor: pointer;">
+                <input type="radio" name="portOption" value="top1000" checked style="cursor: pointer;"> Top 1000
               </label>
-              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
-                <input type="radio" name="portOption" value="top50"> Top 50
+              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; cursor: pointer;">
+                <input type="radio" name="portOption" value="all" style="cursor: pointer;"> All Ports
               </label>
-              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
-                <input type="radio" name="portOption" value="top100"> Top 100
+              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; cursor: pointer;">
+                <input type="radio" name="portOption" value="custom" id="customPortRadio" style="cursor: pointer;"> Custom
               </label>
-              <label style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">
-                <input type="radio" name="portOption" value="custom" id="customPortRadio"> Custom
-              </label>
-              <input type="text" id="customPorts" placeholder="e.g., 80,443,8080,3000" disabled style="background: #050807; border: 1px solid #3a4a40; color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; padding: 5px 10px; border-radius: 2px; width: 200px;">
+              <input type="text" id="customPorts" placeholder="e.g., 80,443,8080,3000" disabled 
+                     style="background: #050807; border: 1px solid #3a4a40; color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; padding: 5px 10px; border-radius: 2px; width: 200px;">
             </div>
           </div>
         </section>
@@ -161,6 +159,17 @@
             </div>
             <div class="panel-body" id="jsScannerBody">
               <p class="no-data">JavaScript scanner will run automatically.</p>
+            </div>
+          </section>
+
+          <!-- Subdomain Discovery -->
+          <section class="panel result-panel" id="subdomainPanel">
+            <div class="panel-header">
+              <span class="panel-title">SUBDOMAIN DISCOVERY</span>
+              <span class="panel-status" id="subdomainStatus"></span>
+            </div>
+            <div class="panel-body" id="subdomainBody">
+              <p class="no-data">Subdomain discovery will run automatically.</p>
             </div>
           </section>
         </div>

@@ -54,14 +54,14 @@ class PortInfo(BaseModel):
     state: str = "open"
 
 
-# ── Port Scan Result (UPDATED with vulnerabilities & os_info) ──
+# ── Port Scan Result ───────────────────────────────────────
 class PortScanResult(BaseModel):
     url: str
     host: str
     open_ports: List[PortInfo] = []
     total_open: int = 0
-    vulnerabilities: List[dict] = []  # Nmap vulnerability detection results
-    os_info: dict = {}                # OS detection from Nmap
+    vulnerabilities: List[dict] = []
+    os_info: dict = {}
     error: Optional[str] = None
 
 
@@ -126,4 +126,12 @@ class JSScanResult(BaseModel):
     tokens: List[str] = []
     internal_paths: List[str] = []
     social_media: List[str] = []
+    error: Optional[str] = None
+
+
+# ── Subdomain Result ───────────────────────────────────────
+class SubdomainResult(BaseModel):
+    domain: str
+    subdomains: List[dict] = []
+    total_found: int = 0
     error: Optional[str] = None

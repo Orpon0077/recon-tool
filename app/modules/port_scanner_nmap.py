@@ -1,10 +1,8 @@
-# ── Port Scanner Module with Nmap (No OS Detection) ────────
+# ── Port Scanner Module with Nmap ──────────────────────────
 import subprocess
 import socket
 from app.config import TOP_10_PORTS, TOP_50_PORTS, TOP_100_PORTS
 from app.models import PortScanResult, PortInfo
-
-TOP_1000_PORTS = list(range(1, 1001))
 
 def get_port_list(port_option: str, custom_ports: str = None) -> list:
     if port_option == "top10":
@@ -14,7 +12,7 @@ def get_port_list(port_option: str, custom_ports: str = None) -> list:
     elif port_option == "top100":
         return list(TOP_100_PORTS.keys())
     elif port_option == "top1000":
-        return TOP_1000_PORTS
+        return list(range(1, 1001))
     elif port_option == "all":
         return []
     elif port_option == "custom" and custom_ports:
@@ -37,7 +35,7 @@ def scan_ports(url: str, port_option: str = "top50", custom_ports: str = None) -
         else:
             port_arg = ",".join(str(p) for p in ports[:500])
         
-        # Run nmap without OS detection
+        # Run nmap without OS detection for speed
         cmd = f"nmap -sV -T4 {ip} -p {port_arg}"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
@@ -60,8 +58,6 @@ def scan_ports(url: str, port_option: str = "top50", custom_ports: str = None) -
                         state="open",
                     ))
         
-        print(f"[Nmap] Found {len(open_ports)} open ports")
-        
         return PortScanResult(
             url=url,
             host=ip,
@@ -72,5 +68,4 @@ def scan_ports(url: str, port_option: str = "top50", custom_ports: str = None) -
         )
         
     except Exception as e:
-        print(f"[Nmap Error] {e}")
         return PortScanResult(url=url, host="", error=str(e))

@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from app.models import (
     ScanRequest, FullReport, SSLResult, SecurityHeadersResult,
     PortScanResult, ScreenshotResult, FirewallResult,
-    TechDetectionResult, CrawlResult, JSScanResult
+    TechDetectionResult, CrawlResult, JSScanResult, SubdomainResult
 )
 from app.modules import (
     analyze_ssl,
@@ -14,7 +14,8 @@ from app.modules import (
     detect_firewall,
     detect_technologies,
     crawl_website,
-    scan_javascript
+    scan_javascript,
+    discover_subdomains
 )
 from app.database import save_scan, get_all_scans, get_scan_by_id
 
@@ -117,3 +118,10 @@ async def api_js_scan(payload: ScanRequest) -> JSScanResult:
     if result.get("error"):
         return JSScanResult(error=result["error"])
     return JSScanResult(**result)
+
+
+@router.post("/subdomains", response_model=SubdomainResult)
+async def api_subdomains(payload: ScanRequest) -> SubdomainResult:
+    """Discover subdomains for a domain"""
+    result = await asyncio.to_thread(discover_subdomains, payload.url)
+    return SubdomainResult(**result)
