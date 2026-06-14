@@ -135,3 +135,11 @@ class SubdomainResult(BaseModel):
     subdomains: List[dict] = []
     total_found: int = 0
     error: Optional[str] = None
+
+
+# ── Subdomain Result ───────────────────────────────────────
+class SubdomainResult(BaseModel):
+    domain: str
+    subdomains: List[dict] = []
+    total_found: int = 0
+    error: Optional[str] = None

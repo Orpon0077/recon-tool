@@ -26,7 +26,7 @@ from .crawler import crawl_website
 from .js_scanner import scan_javascript
 
 # ── Subdomain Discovery ────────────────────────────────────
-from .subdomain_discovery import discover_subdomains, discover_subdomains_advanced
+from .subdomain_discovery import discover_subdomains
 
 __all__ = [
     "analyze_ssl",
@@ -37,6 +37,5 @@ __all__ = [
     "detect_technologies",
     "crawl_website",
     "scan_javascript",
-    "discover_subdomains",
-    "discover_subdomains_advanced"
+    "discover_subdomains"
 ]
