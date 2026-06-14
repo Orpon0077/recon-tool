@@ -90,13 +90,11 @@ async function startScan() {
   let rawUrl = urlInput.value.trim();
   if (!rawUrl) { urlInput.focus(); return; }
 
-  // URL normalize
   let targetUrl = rawUrl;
   if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
     targetUrl = 'https://' + targetUrl;
   }
 
-  // Port options
   const portOptionEl = document.querySelector('input[name="portOption"]:checked');
   const portOption = portOptionEl ? portOptionEl.value : "top1000";
   const customPortsEl = document.getElementById("customPorts");
@@ -152,7 +150,7 @@ async function startScan() {
 
     loadHistory();
 
-    // ── JS Scanner ──
+    // JS Scanner
     try {
       log("Running JavaScript scanner...", "info");
       const jsResponse = await fetch("/api/js-scan", {
@@ -165,20 +163,12 @@ async function startScan() {
       if (jsData && !jsData.error) {
         log(`JS Scan: ${jsData.total_js_files || 0} JS files found`, "ok");
         renderJSScanner(jsData);
-        if (jsData.emails && jsData.emails.length > 0) {
-          log(`  📧 Found ${jsData.emails.length} email addresses`, "info");
-        }
-        if (jsData.internal_paths && jsData.internal_paths.length > 0) {
-          log(`  📁 Found ${jsData.internal_paths.length} internal paths`, "info");
-        }
-      } else if (jsData && jsData.error) {
-        log(`JS Scan error: ${jsData.error}`, "warn");
       }
     } catch (jsErr) {
       log(`JS Scan failed: ${jsErr.message}`, "warn");
     }
 
-    // ── Subdomain Discovery ──
+    // Subdomain Discovery
     try {
       log("Running subdomain discovery...", "info");
       const subResponse = await fetch("/api/subdomains", {
@@ -191,13 +181,6 @@ async function startScan() {
       if (subData && !subData.error) {
         log(`Subdomains: ${subData.total_found || 0} found`, "ok");
         renderSubdomains(subData);
-        if (subData.subdomains && subData.subdomains.length > 0) {
-          subData.subdomains.forEach(sd => {
-            log(`  🌐 ${sd.subdomain} → ${sd.ip}`, "info");
-          });
-        }
-      } else if (subData && subData.error) {
-        log(`Subdomain error: ${subData.error}`, "warn");
       }
     } catch (subErr) {
       log(`Subdomain discovery failed: ${subErr.message}`, "warn");
@@ -259,7 +242,7 @@ function renderSecurity(data) {
     ${presentHtml}${missingHtml}`;
 }
 
-// ── Port Scan Result (with OS Detection) ───────────────────
+// ── Port Scan Result ───────────────────────────────────────
 function renderPorts(data) {
   const body = document.getElementById("portsBody");
   const status = document.getElementById("portsStatus");
@@ -274,7 +257,6 @@ function renderPorts(data) {
   
   let html = "";
   
-  // OS Detection Section
   if (data.os_info && Object.keys(data.os_info).length > 0) {
     html += `<div class="tech-category" style="margin-bottom: 15px; border: 1px solid #00ff88; background: #0d1210; border-radius: 4px;">
       <div class="tech-category-title" style="color: #00ff88; padding: 8px;">💻 Operating System Detection</div>
@@ -295,13 +277,12 @@ function renderPorts(data) {
     </div>`;
   }
   
-  // Open ports table
   if (data.total_open > 0) {
     html += `<table class="port-table"><thead><tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr></thead><tbody>`;
     data.open_ports.forEach(p => {
       html += `<tr><td><span class="port-num">${p.port}</span></td><td>${esc(p.service)}</span></td>。<span class="port-open">${esc(p.state)}</span></td><td>${esc(p.version)}</span></tr>`;
     });
-    html += `</tbody><tr>`;
+    html += `</tbody></td>`;
   } else {
     html += `<p class="no-data">No open ports found.</p>`;
   }
@@ -440,7 +421,7 @@ function renderCrawl(data) {
     <table class="crawl-table">
       <thead><tr><th>URL</th><th>Method</th><th>Status</th><th>Content Type</th></tr></thead>
       <tbody>${rows}</tbody>
-    <table>`;
+    </table>`;
 }
 
 // ── JS Scanner Result ─────────────────────────────────────
@@ -492,7 +473,7 @@ function renderJSScanner(data) {
   body.innerHTML = html;
 }
 
-// ── Subdomain Discovery Result ─────────────────────────────
+// ── Subdomain Discovery Result (Crawl Results Style) ────────
 function renderSubdomains(data) {
   const body = document.getElementById("subdomainBody");
   const status = document.getElementById("subdomainStatus");
@@ -512,16 +493,59 @@ function renderSubdomains(data) {
     return;
   }
   
-  let html = `<div class="tech-category"><div class="tech-badges" style="display: flex; flex-direction: column; gap: 8px;">`;
+  let html = `<table class="crawl-table" style="width: 100%; border-collapse: collapse;">
+    <thead>
+      <tr>
+        <th>🌐 Subdomain</th>
+        <th>📡 IP Address</th>
+        <th>📊 Status</th>
+        <th>🔧 Technologies</th>
+        <th>🔌 Open Ports</th>
+        <th>📸 Screenshot</th>
+      </tr>
+    </thead>
+    <tbody>`;
   
   data.subdomains.forEach(sd => {
-    html += `<div class="tech-badge" style="display: flex; justify-content: space-between; width: 100%; background: #1a1a2e;">
-      <span>🌐 ${esc(sd.subdomain)}</span>
-      <span style="color: #00ff88;">→ ${esc(sd.ip)}</span>
-    </div>`;
+    // Status color
+    let statusClass = "";
+    let statusText = sd.http_status || 'N/A';
+    if (sd.http_status >= 200 && sd.http_status < 300) statusClass = "status-2xx";
+    else if (sd.http_status >= 400 && sd.http_status < 500) statusClass = "status-4xx";
+    else if (sd.http_status >= 500) statusClass = "status-5xx";
+    
+    // Screenshot
+    let screenshotHtml = `<span style="color: #888;">N/A</span>`;
+    if (sd.screenshot) {
+      screenshotHtml = `<a href="/static/${sd.screenshot}" target="_blank">
+        <img src="/static/${sd.screenshot}" style="width: 50px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #2a2a35;" 
+             onerror="this.style.display='none'; this.parentElement.innerHTML='N/A'">
+      </a>`;
+    }
+    
+    // Technologies
+    let techHtml = `<span style="color: #888;">None</span>`;
+    if (sd.technologies && sd.technologies.length > 0) {
+      techHtml = sd.technologies.map(t => `<span style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px; margin: 2px; display: inline-block;">${esc(t)}</span>`).join('');
+    }
+    
+    // Ports
+    let portsHtml = `<span style="color: #888;">None</span>`;
+    if (sd.open_ports && sd.open_ports.length > 0) {
+      portsHtml = sd.open_ports.map(p => `<span style="background: #003d20; padding: 2px 6px; border-radius: 3px; margin: 2px; display: inline-block;">${esc(p)}</span>`).join('');
+    }
+    
+    html += `<tr>
+      <td><a href="https://${esc(sd.subdomain)}" target="_blank" style="color: #00ff88;">🌐 ${esc(sd.subdomain)}</a></td>
+      <td>${esc(sd.ip)}</span></td>
+      <td><span class="${statusClass}">${statusText}</span></td>
+      <td>${techHtml}</span></td>
+      <td>${portsHtml}</span></td>
+      <td>${screenshotHtml}</span></td>
+    </tr>`;
   });
   
-  html += `</div></div>`;
+  html += `</tbody></table>`;
   body.innerHTML = html;
 }
 
