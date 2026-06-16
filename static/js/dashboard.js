@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 
-// Page load হলে history দেখাও
+// Load history on page load
 window.onload = () => loadHistory();
 
 urlInput.addEventListener("keydown", e => {
@@ -35,7 +35,7 @@ function log(text, type = "info") {
   terminalLog.scrollTop = terminalLog.scrollHeight;
 }
 
-// ── History load করো ──────────────────────────────────────
+// ── Load History ──────────────────────────────────────────
 async function loadHistory() {
   const historyList = document.getElementById("historyList");
   try {
@@ -55,7 +55,7 @@ async function loadHistory() {
   }
 }
 
-// ── পুরনো scan load করো ───────────────────────────────────
+// ── Load Old Scan ─────────────────────────────────────────
 async function loadScan(scanId) {
   try {
     const response = await fetch(`/api/history/${scanId}`);
@@ -473,7 +473,7 @@ function renderJSScanner(data) {
   body.innerHTML = html;
 }
 
-// ── Subdomain Discovery Result (Crawl Results Style) ────────
+// ── Subdomain Discovery Result ────────────────────────────
 function renderSubdomains(data) {
   const body = document.getElementById("subdomainBody");
   const status = document.getElementById("subdomainStatus");

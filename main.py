@@ -1,5 +1,5 @@
 # ── Main Application ───────────────────────────────────────
-# FastAPI app তৈরি এবং সব parts জোড়া লাগানো
+# FastAPI app setup with all components
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -24,14 +24,14 @@ async def dashboard(request: Request):
 
 
 # ── Scan History ───────────────────────────────────────────
-# সব scan এর list
+# List all scans
 @app.get("/api/history")
 async def get_history():
     scans = await get_all_scans()
     return scans
 
 
-# একটা specific scan এর result
+# Get a specific scan result
 @app.get("/api/history/{scan_id}")
 async def get_scan(scan_id: str):
     scan = await get_scan_by_id(scan_id)

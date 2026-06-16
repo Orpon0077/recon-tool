@@ -1,5 +1,5 @@
 # ── Modules Package ────────────────────────────────────────
-# সব module এক জায়গা থেকে import করা যাবে
+# all modules are imported here to make them accessible when the package is imported
 
 # ── SSL/TLS Analysis ───────────────────────────────────────
 from .ssl_analysis import analyze_ssl

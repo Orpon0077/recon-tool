@@ -1,9 +1,9 @@
 # ── Port Scanner Module ────────────────────────────────────
-# Website এর open ports এবং service version বের করে
+# Find open ports and their service versions on a target URL
 import socket
 from app.models import PortInfo, PortScanResult
 
-# সবচেয়ে common ports এবং তাদের service নাম
+# List of most common ports and their service names
 COMMON_PORTS = {
     21: "FTP",
     22: "SSH",
@@ -27,22 +27,22 @@ COMMON_PORTS = {
 
 def get_service_version(host: str, port: int) -> str:
     """
-    Port এ connect করে service এর banner পড়ে।
-    Banner = service যে পরিচয় দেয় connect হওয়ার পর।
+    Connect to a port and retrieve the service banner.
+    Banner = the identity the service provides upon connection.
     """
 
     try:
-        # socket ব্যবহার করে port এ connect করা এবং banner পড়া
+        # Use socket to connect to the port and read the banner
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # TCP socket
-        sock.settimeout(2)  # 2 সেকেন্ডের timeout   
-        sock.connect((host, port))  # host এবং port এ connect করা
+        sock.settimeout(2)  # 2 second timeout
+        sock.connect((host, port))  # Connect to host and port
 
-        # Service কী বলে সেটা পড়ো
+        # Read the service banner
         sock.send(b"HEAD / HTTP/1.0\r\n\r\n")  # HTTP request পাঠানো
         banner = sock.recv(1024).decode("utf-8", errors="ignore").strip() # banner পড়া এবং decode করা
         sock.close()
 
-        # প্রথম line নাও — সেটাই version info
+        # Take the first line — that's the version info
         first_line = banner.split("\n")[0].strip()
         return first_line if first_line else "Unknown Service"
 
@@ -51,33 +51,33 @@ def get_service_version(host: str, port: int) -> str:
 
 def scan_port(url: str, port: int) -> bool:
     """
-    একটা port open আছে কিনা check করে।
-    Open থাকলে True, বন্ধ থাকলে False।
+    Check if a port is open.
+    Returns True if open, False if closed.
     """
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # TCP socket
-        sock.settimeout(1)  # 1 সেকেন্ডের timeout
-        result = sock.connect_ex((host, port))  # host এবং port এ connect করার চেষ্টা
+        sock.settimeout(1)  # 1 second timeout
+        result = sock.connect_ex((host, port))  # host and port connection attempt
         sock.close()
-        return result == 0  # যদি result 0 হয়, তাহলে port open
+        return result == 0  # if result is 0, the port is open
     except Exception:
         return False
 
 
 def scan_ports(url: str) -> PortScanResult:
     try:
-        # URL থেকে hostname বের করা
+        # Take hostename from URL (remove http:// or https:// and path)
         host = url.replace("https//", "").replace("http//", "").split("/")[0]
 
-        # hostname কে IP address এ রূপান্তর করা
+        # change hostname to IP address
         ip = socket.gethostbyname(host)
 
         open_ports = []
 
-        # প্রতিটা common port check করা
+        # check each common port
         for port, service_name in COMMON_PORTS.items():
             if scan_port(ip, port):
-                # Port open — version জানার চেষ্টা করো
+                # Port open — get service version
                 version = get_service_version(ip, port)
 
                 open_ports.append(PortInfo(

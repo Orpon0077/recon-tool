@@ -1,60 +1,59 @@
 # ── Security Headers Analysis Module ──────────────────────
-# Website এর security headers check করে
-# কোনগুলো আছে, কোনগুলো নেই, এবং score দেয়
+# this module checks for the presence of important security headers in the HTTP response and calculates a security score based on how many of those headers are present. It also handles various exceptions that may occur during the request process.
 
 import requests
-from app.config import REQUEST_TIMEOUT, REQUEST_HEADERS     #Request timeout এবং User agent সেট করা
-from app.models import SecurityHeadersResult                #SecurityHeadersResult মডেল ইম্পোর্ট করা
+from app.config import REQUEST_TIMEOUT, REQUEST_HEADERS     #Set request timeout and user agent header from config.py
+from app.models import SecurityHeadersResult                #Import SecurityHeadersResult model to store the results of the security headers analysis
 
-# যে headers গুলো একটা secure website এ থাকা উচিত
+# the headers that should be present in a secure website
 IMPORTANT_HEADERS = {
-    "strict-transport-security": "সবসময় HTTPS use করো",
-    "content-security-policy": "XSS attack থেকে রক্ষা করে",
-    "x-content-type-options": "MIME sniffing থেকে রক্ষা করে",
-    "x-frame-options": "Clickjacking থেকে রক্ষা করে",
-    "referrer-policy": "Referrer information control করে",
-    "permissions-policy": "Browser features control করে",
+    "strict-transport-security": "Always use HTTPS",
+    "content-security-policy": "Protects against XSS attacks",
+    "x-content-type-options": "MIME sniffing prevention",
+    "x-frame-options": "Clickjacking prevention",
+    "referrer-policy": "Referrer information control",
+    "permissions-policy": "Browser features control",
 }
 
 def analyze_security_headers(url: str) -> SecurityHeadersResult:
     try:
-        #website এ request পাঠিয়ে response header পাওয়া
+        # send a GET request to the website with the specified timeout and headers
         response = requests.get(
             url,
-            timeout=REQUEST_TIMEOUT, #Request timeout সেট করা
-            headers=REQUEST_HEADERS, #User agent সহ request পাঠানো
-            allow_redirects=True, # redirect হলে ও analyze করবে
+            timeout=REQUEST_TIMEOUT, #Request timeout set from config.py
+            headers=REQUEST_HEADERS, #User agent set from config.py
+            allow_redirects=True, # redirects allowed to follow, so we can analyze the final destination's headers
         )
 
-        # সব response headers lowercase করো
+        # lowercase the response headers for easier comparison
         resp_headers = {k.lower(): v for k, v in response.headers.items()}
 
-        present = {} # পাওয়া security headers
-        missing = [] # অনুপস্থিত security headers
+        present = {} # received security headers
+        missing = [] # missing security headers
 
-        # প্রতিটা important header check করো
+        # check each important header
         for header, description in IMPORTANT_HEADERS.items():
             if header in resp_headers:
                 present[header] = resp_headers[header]
             else:
                 missing.append(header)
 
-        # score হিসাব করা (প্রতিটা পাওয়া header এর জন্য 100/total_headers)
-        total = len(IMPORTANT_HEADERS) # মোট important headers
-        found = len(present) # পাওয়া headers
+        # calculate security score based on found and missing headers
+        total = len(IMPORTANT_HEADERS) # total important headers
+        found = len(present) # received headers
         score = int((found / total) * 100) # security score (0-100)
 
         return SecurityHeadersResult(
-            url=url,                    # URL সেট করা
-            present=present,            # পাওয়া headers
-            missing=missing,           # অনুপস্থিত headers
-            score=score,           # security score সেট করা
+            url=url,                    # website URL
+            present=present,            # received headers
+            missing=missing,           # missing headers
+            score=score,           # security score (0-100)
         )
 
     except requests.exceptions.ConnectionError:
-        return SecurityHeadersResult(url=url, error="Connection failed") #Connection error হলে এখানে message আসবে
+        return SecurityHeadersResult(url=url, error="Connection failed") # this error occurs when the website is down or not reachable
     except requests.exceptions.Timeout:
-        return SecurityHeadersResult(url=url, error="Request timed out") #Request timeout হলে এখানে message আসবে
+        return SecurityHeadersResult(url=url, error="Request timed out") # this error occurs when the request times out
     except requests.exceptions.RequestException as e:               
-        return SecurityHeadersResult(url=url, error=str(e)) # অন্য কোনো request error হলে সেটার message এখানে আসবে
+        return SecurityHeadersResult(url=url, error=str(e)) # this error occurs for any other request-related issues
 

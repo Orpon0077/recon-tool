@@ -28,7 +28,7 @@ def scan_ports(url: str, port_option: str = "top50", custom_ports: str = None) -
         except:
             ip = host
         
-        ports = get_port_list(port_option, custom_ports)
+        ports = get_port_list(port_option, custom_ports) 
         
         if not ports:
             port_arg = "1-1000"
