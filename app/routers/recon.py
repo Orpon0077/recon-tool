@@ -22,40 +22,41 @@ router = APIRouter(prefix="/api", tags=["recon"])
 
 @router.post("/scan")
 async def api_full_scan(payload: ScanRequest) -> dict:
-    """Full scan with all modules - optimized for speed"""
+    """Full scan with all modules"""
     try:
         url = payload.url
         
-        # Helper for sync functions (with timeout)
         async def run_sync_with_timeout(func, *args, timeout=15):
             try:
                 return await asyncio.wait_for(asyncio.to_thread(func, *args), timeout=timeout)
             except asyncio.TimeoutError:
                 return {"error": "Timeout"}
         
-        # Helper for async functions (with timeout)
         async def run_async_with_timeout(func, *args, timeout=15):
             try:
                 return await asyncio.wait_for(func(*args), timeout=timeout)
             except asyncio.TimeoutError:
                 return {"error": "Timeout"}
         
-        # Run all modules concurrently
+        # Run all modules
         ssl_task = run_sync_with_timeout(analyze_ssl, url, timeout=10)
         security_task = run_sync_with_timeout(analyze_security_headers, url, timeout=10)
         ports_task = run_sync_with_timeout(scan_ports, url, payload.port_option, payload.custom_ports, timeout=20)
-        screenshot_task = run_async_with_timeout(capture_screenshot, url, timeout=15)  # FIXED: async function
+        screenshot_task = run_async_with_timeout(capture_screenshot, url, timeout=50)  # ← 50 seconds
         firewall_task = run_sync_with_timeout(detect_firewall, url, timeout=10)
         tech_task = run_sync_with_timeout(detect_technologies, url, timeout=15)
         crawl_task = run_sync_with_timeout(crawl_website, url, timeout=15)
         subdomain_task = run_sync_with_timeout(discover_subdomains, url, timeout=10)
+        js_task = run_sync_with_timeout(scan_javascript, url, timeout=15)
         
-        # Wait for all tasks
-        ssl_result, security_result, ports_result, screenshot_result, firewall_result, tech_result, crawl_result, subdomain_result = await asyncio.gather(
-            ssl_task, security_task, ports_task, screenshot_task, firewall_task, tech_task, crawl_task, subdomain_task
+        results = await asyncio.gather(
+            ssl_task, security_task, ports_task, screenshot_task, 
+            firewall_task, tech_task, crawl_task, subdomain_task, js_task,
+            return_exceptions=True
         )
         
-        # Prepare result
+        ssl_result, security_result, ports_result, screenshot_result, firewall_result, tech_result, crawl_result, subdomain_result, js_result = results
+        
         result = {
             "url": url,
             "ssl": ssl_result.dict() if hasattr(ssl_result, 'dict') else ssl_result,
@@ -65,10 +66,10 @@ async def api_full_scan(payload: ScanRequest) -> dict:
             "firewall": firewall_result.dict() if hasattr(firewall_result, 'dict') else firewall_result,
             "tech": tech_result.dict() if hasattr(tech_result, 'dict') else tech_result,
             "crawl": crawl_result.dict() if hasattr(crawl_result, 'dict') else crawl_result,
-            "subdomains": subdomain_result.dict() if hasattr(subdomain_result, 'dict') else subdomain_result
+            "subdomains": subdomain_result.dict() if hasattr(subdomain_result, 'dict') else subdomain_result,
+            "js_scanner": js_result.dict() if hasattr(js_result, 'dict') else js_result
         }
         
-        # Save to database
         scan_id = await save_scan(url, result)
         result["scan_id"] = scan_id
         
@@ -136,3 +137,13 @@ async def api_js_scan(payload: ScanRequest) -> JSScanResult:
 async def api_subdomains(payload: ScanRequest) -> SubdomainResult:
     result = await asyncio.to_thread(discover_subdomains, payload.url)
     return SubdomainResult(**result)
+
+
+@router.post("/export-pdf")
+async def export_pdf(payload: dict):
+    try:
+        from app.modules.pdf_generator import generate_pdf_report
+        filepath = await asyncio.to_thread(generate_pdf_report, payload, payload.get('url', 'unknown'))
+        return {"success": True, "filepath": filepath, "download_url": f"/{filepath}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

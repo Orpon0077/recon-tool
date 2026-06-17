@@ -19,7 +19,6 @@ document.addEventListener("DOMContentLoaded", function() {
   }
 });
 
-// Load history on page load
 window.onload = () => loadHistory();
 
 urlInput.addEventListener("keydown", e => {
@@ -133,7 +132,7 @@ async function startScan() {
     }
 
     const data = await response.json();
-    log("All modules done!", "ok");
+    log("Main modules done!", "ok");
     log(`Saved to database. ID: ${data.scan_id}`, "ok");
 
     renderSSL(data.ssl);
@@ -145,14 +144,13 @@ async function startScan() {
     renderCrawl(data.crawl);
 
     resultsGrid.style.display = "grid";
-    statusLabel.textContent = "COMPLETE";
-    log("All done!", "ok");
+    statusLabel.textContent = "WAITING FOR JS & SUBDOMAIN...";
 
     loadHistory();
 
-    // JS Scanner
+    // ── JS Scanner (Async) ──
+    log("Running JavaScript scanner... (may take a moment)", "info");
     try {
-      log("Running JavaScript scanner...", "info");
       const jsResponse = await fetch("/api/js-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -163,14 +161,15 @@ async function startScan() {
       if (jsData && !jsData.error) {
         log(`JS Scan: ${jsData.total_js_files || 0} JS files found`, "ok");
         renderJSScanner(jsData);
+        data.js_scanner = jsData;
       }
     } catch (jsErr) {
       log(`JS Scan failed: ${jsErr.message}`, "warn");
     }
 
-    // Subdomain Discovery
+    // ── Subdomain Discovery (Async) ──
+    log("Running subdomain discovery... (may take a moment)", "info");
     try {
-      log("Running subdomain discovery...", "info");
       const subResponse = await fetch("/api/subdomains", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -181,10 +180,17 @@ async function startScan() {
       if (subData && !subData.error) {
         log(`Subdomains: ${subData.total_found || 0} found`, "ok");
         renderSubdomains(subData);
+        data.subdomains = subData;
       }
     } catch (subErr) {
       log(`Subdomain discovery failed: ${subErr.message}`, "warn");
     }
+
+    // ── All done, enable PDF button ──
+    log("All modules complete! PDF ready.", "ok");
+    statusLabel.textContent = "COMPLETE";
+    window._lastScanData = data;
+    document.getElementById("downloadPdfBtn").style.display = "inline-block";
 
   } catch (err) {
     log(`Error: ${err.message}`, "error");
@@ -507,14 +513,12 @@ function renderSubdomains(data) {
     <tbody>`;
   
   data.subdomains.forEach(sd => {
-    // Status color
     let statusClass = "";
     let statusText = sd.http_status || 'N/A';
     if (sd.http_status >= 200 && sd.http_status < 300) statusClass = "status-2xx";
     else if (sd.http_status >= 400 && sd.http_status < 500) statusClass = "status-4xx";
     else if (sd.http_status >= 500) statusClass = "status-5xx";
     
-    // Screenshot
     let screenshotHtml = `<span style="color: #888;">N/A</span>`;
     if (sd.screenshot) {
       screenshotHtml = `<a href="/static/${sd.screenshot}" target="_blank">
@@ -523,13 +527,11 @@ function renderSubdomains(data) {
       </a>`;
     }
     
-    // Technologies
     let techHtml = `<span style="color: #888;">None</span>`;
     if (sd.technologies && sd.technologies.length > 0) {
       techHtml = sd.technologies.map(t => `<span style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px; margin: 2px; display: inline-block;">${esc(t)}</span>`).join('');
     }
     
-    // Ports
     let portsHtml = `<span style="color: #888;">None</span>`;
     if (sd.open_ports && sd.open_ports.length > 0) {
       portsHtml = sd.open_ports.map(p => `<span style="background: #003d20; padding: 2px 6px; border-radius: 3px; margin: 2px; display: inline-block;">${esc(p)}</span>`).join('');
@@ -547,6 +549,44 @@ function renderSubdomains(data) {
   
   html += `</tbody></table>`;
   body.innerHTML = html;
+}
+
+// ── Download PDF Report ───────────────────────────────────
+async function downloadPDF() {
+  const scanData = window._lastScanData;
+  
+  if (!scanData) {
+    alert("No scan data available. Please run a scan first.");
+    return;
+  }
+  
+  try {
+    log("Generating PDF report...", "info");
+    document.getElementById("downloadPdfBtn").disabled = true;
+    document.getElementById("downloadPdfBtn").textContent = "⏳ GENERATING...";
+    
+    const response = await fetch("/api/export-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(scanData)
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      log("PDF generated successfully!", "ok");
+      window.location.href = result.download_url;
+    } else {
+      log(`PDF generation failed: ${result.error}`, "error");
+      alert("Failed to generate PDF: " + result.error);
+    }
+  } catch (err) {
+    log(`PDF generation error: ${err.message}`, "error");
+    alert("Error generating PDF: " + err.message);
+  } finally {
+    document.getElementById("downloadPdfBtn").disabled = false;
+    document.getElementById("downloadPdfBtn").textContent = "📄 DOWNLOAD PDF";
+  }
 }
 
 // ── XSS Protection ────────────────────────────────────────

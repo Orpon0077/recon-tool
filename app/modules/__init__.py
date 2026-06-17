@@ -28,6 +28,9 @@ from .js_scanner import scan_javascript
 # ── Subdomain Discovery ────────────────────────────────────
 from .subdomain_discovery import discover_subdomains
 
+# ── PDF Generator ──────────────────────────────────────────
+from .pdf_generator import generate_pdf_report
+
 __all__ = [
     "analyze_ssl",
     "analyze_security_headers",
@@ -37,5 +40,6 @@ __all__ = [
     "detect_technologies",
     "crawl_website",
     "scan_javascript",
-    "discover_subdomains"
+    "discover_subdomains",
+    "generate_pdf_report"
 ]
