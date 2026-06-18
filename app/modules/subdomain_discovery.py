@@ -1,18 +1,33 @@
 import subprocess
 import socket
 import os
+import time
 
 HOME = os.path.expanduser("~")
 GO_PATH = f"{HOME}/go/bin"
 
-# Socket fallback list
+# Socket subdomain list
 SOCKET_SUBDOMAINS = [
     "www", "mail", "blog", "api", "admin", "dev", "test",
     "shop", "support", "login", "signup", "app", "cdn",
     "static", "assets", "img", "video", "media", "docs",
     "drive", "calendar", "photos", "news", "maps", "accounts",
-    "office", "portal", "tools", "marketing", "waf", "link"
+    "office", "portal", "tools", "marketing", "waf", "link",
+    "ftp", "smtp", "pop", "imap", "mx", "ns1", "ns2",
+    "cpanel", "whm", "webmail", "autodiscover", "webdisk",
+    "staging", "stage", "beta", "demo", "sandbox", "dev",
+    "community", "forum", "chat", "help", "support",
+    "remote", "server", "backup", "cache", "proxy", "monitor"
 ]
+
+def resolve_with_retry(domain: str, retries: int = 2) -> str:
+    """DNS resolution with retry"""
+    for i in range(retries):
+        try:
+            return socket.gethostbyname(domain)
+        except:
+            time.sleep(0.5)
+    return None
 
 def discover_subdomains(domain: str) -> dict:
     domain = domain.replace("https://", "").replace("http://", "").split("/")[0]
@@ -23,18 +38,17 @@ def discover_subdomains(domain: str) -> dict:
     print(f"\n[Subdomain Discovery] Target: {domain}")
     print("=" * 50)
     
-    # ── Subfinder (30s timeout) ──
+    # ── Tool 1: Subfinder (45s timeout) ──
     subfinder_path = f"{GO_PATH}/subfinder"
     if os.path.exists(subfinder_path):
         try:
-            print("[Subfinder] Running (30s timeout)...")
+            print("[Subfinder] Running (45s timeout)...")
             result = subprocess.run(
                 [subfinder_path, "-d", domain, "-silent"],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=45
             )
             count = 0
-            lines = result.stdout.split('\n')
-            for line in lines:
+            for line in result.stdout.split('\n'):
                 line = line.strip()
                 if line and domain in line:
                     all_subdomains.add(line)
@@ -46,20 +60,18 @@ def discover_subdomains(domain: str) -> dict:
         except Exception as e:
             print(f"[Subfinder] Error: {e}")
     else:
-        print(f"[Subfinder] Not found")
+        print("[Subfinder] Not installed")
     
-    # ── Socket Fallback ──
+    # ── Tool 2: Socket with retry ──
     print("[Socket] Running...")
     socket_count = 0
     for sub in SOCKET_SUBDOMAINS:
         full_domain = f"{sub}.{domain}"
-        try:
-            ip = socket.gethostbyname(full_domain)
+        ip = resolve_with_retry(full_domain)
+        if ip:
             all_subdomains.add(full_domain)
             socket_count += 1
             print(f"[Socket] Found: {full_domain} -> {ip}")
-        except:
-            pass
     print(f"[Socket] Found: {socket_count}")
     
     # ── Format Results ──

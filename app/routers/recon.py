@@ -47,8 +47,8 @@ async def api_full_scan(payload: ScanRequest) -> dict:
         # ── Crawling (30s timeout for JS-rendered sites) ──
         crawl_task = run_sync_with_timeout(crawl_website, url, timeout=30)
         
-        # ── Subdomain Discovery (35s timeout for Subfinder) ──
-        subdomain_task = run_sync_with_timeout(discover_subdomains, url, timeout=35)
+        # ── Subdomain Discovery (50s timeout for Subfinder) ──
+        subdomain_task = run_sync_with_timeout(discover_subdomains, url, timeout=50)
         
         # ── JS Scanner (18s timeout) ──
         js_task = run_sync_with_timeout(scan_javascript, url, timeout=18)
