@@ -56,4 +56,3 @@ def analyze_security_headers(url: str) -> SecurityHeadersResult:
         return SecurityHeadersResult(url=url, error="Request timed out") # this error occurs when the request times out
     except requests.exceptions.RequestException as e:               
         return SecurityHeadersResult(url=url, error=str(e)) # this error occurs for any other request-related issues
-

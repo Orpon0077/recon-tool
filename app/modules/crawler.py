@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from app.config import REQUEST_TIMEOUT, REQUEST_HEADERS
 from app.models import CrawlResult, EndpointInfo
+from app.modules.playwright_manager import playwright_manager
 
 def crawl_website(url: str) -> CrawlResult:
     """Crawl website - tries Playwright first, then requests"""
@@ -11,15 +12,26 @@ def crawl_website(url: str) -> CrawlResult:
         seen = set()
         html_content = None
         
-        # Method 1: Playwright (for JS-rendered sites)
+        # Method 1: Playwright (for JS-rendered sites) - using shared manager
         try:
-            from playwright.sync_api import sync_playwright
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
-                page.goto(url, wait_until="networkidle", timeout=20000)
-                html_content = page.content()
-                browser.close()
+            import asyncio
+            
+            async def _crawl():
+                page = await playwright_manager.new_page()
+                try:
+                    await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                    await page.wait_for_timeout(2000)
+                    content = await page.content()
+                    await page.close()
+                    return content
+                except Exception as e:
+                    await page.close()
+                    raise e
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            html_content = loop.run_until_complete(_crawl())
+            loop.close()
             print("[Crawler] Using Playwright (JS-rendered)")
         except Exception as e:
             print(f"[Crawler] Playwright failed: {e}")

@@ -6,6 +6,19 @@ from app.models import PortInfo, PortScanResult
 COMMON_PORTS = {
     80: "HTTP",
     443: "HTTPS",
+    22: "SSH",
+    21: "FTP",
+    25: "SMTP",
+    53: "DNS",
+    110: "POP3",
+    143: "IMAP",
+    445: "SMB",
+    3306: "MySQL",
+    3389: "RDP",
+    5432: "PostgreSQL",
+    6379: "Redis",
+    8080: "HTTP-Alt",
+    8443: "HTTPS-Alt",
 }
 
 def scan_ports(url: str, port_option: str = "top1000", custom_ports: str = None) -> PortScanResult:
@@ -28,7 +41,7 @@ def scan_ports(url: str, port_option: str = "top1000", custom_ports: str = None)
         for port, service in COMMON_PORTS.items():
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(3)
+                sock.settimeout(2)
                 result = sock.connect_ex((ip, port))
                 sock.close()
                 
