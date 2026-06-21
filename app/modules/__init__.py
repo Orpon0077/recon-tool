@@ -1,4 +1,3 @@
-# ── Modules Package ────────────────────────────────────────
 from .ssl_analysis import analyze_ssl
 from .security_headers import analyze_security_headers
 from .port_scanner import scan_ports
@@ -9,7 +8,6 @@ from .crawler import crawl_website
 from .js_scanner import scan_javascript
 from .subdomain_discovery import discover_subdomains
 from .pdf_generator import generate_pdf_report
-from .playwright_manager import playwright_manager, cleanup_playwright
 
 __all__ = [
     "analyze_ssl",
@@ -21,7 +19,5 @@ __all__ = [
     "crawl_website",
     "scan_javascript",
     "discover_subdomains",
-    "generate_pdf_report",
-    "playwright_manager",
-    "cleanup_playwright"
+    "generate_pdf_report"
 ]

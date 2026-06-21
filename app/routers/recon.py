@@ -45,7 +45,7 @@ async def api_full_scan(payload: ScanRequest) -> dict:
         tech_task = run_sync_with_timeout(detect_technologies, url, timeout=12)
         
         # ── Crawling (30s timeout for JS-rendered sites) ──
-        crawl_task = run_sync_with_timeout(crawl_website, url, timeout=30)
+        crawl_task = run_sync_with_timeout(crawl_website, url, timeout=60)
         
         # ── Subdomain Discovery (50s timeout for Subfinder) ──
         subdomain_task = run_sync_with_timeout(discover_subdomains, url, timeout=50)
@@ -57,7 +57,7 @@ async def api_full_scan(payload: ScanRequest) -> dict:
         ports_task = run_sync_with_timeout(scan_ports, url, payload.port_option, payload.custom_ports, timeout=30)
         
         # ── Screenshot (45s timeout, runs independently) ──
-        screenshot_task = asyncio.create_task(run_async_with_timeout(capture_screenshot, url, timeout=45))
+        screenshot_task = asyncio.create_task(run_async_with_timeout(capture_screenshot, url, timeout=60))
         
         # ── Gather all modules (except screenshot) ──
         ssl_result, security_result, firewall_result, tech_result, crawl_result, subdomain_result, js_result, ports_result = await asyncio.gather(

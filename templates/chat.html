@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recon AI Chat</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .chat-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #0d1210;
+            border: 1px solid #1a2e20;
+            border-radius: 8px;
+        }
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            background: #050807;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .message {
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+        }
+        .message.user {
+            background: #1a2e20;
+            color: #b8cfbe;
+            text-align: right;
+            border-right: 2px solid #00ff88;
+        }
+        .message.assistant {
+            background: #0d1a15;
+            color: #00ff88;
+            border-left: 2px solid #00ff88;
+        }
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            background: #050807;
+            border: 1px solid #1a2e20;
+            color: #b8cfbe;
+            border-radius: 4px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .chat-input button {
+            padding: 12px 24px;
+            background: #003d20;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .chat-input button:hover {
+            background: #00ff88;
+            color: #050807;
+        }
+        .typing {
+            color: #6a8070;
+            font-style: italic;
+        }
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 0 0 8px #00ff88;
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <div class="logo">
+                <span class="logo-bracket">[</span>
+                <span class="logo-text">RECON</span>
+                <span class="logo-bracket">]</span>
+                <span class="logo-sub">AI ASSISTANT</span>
+            </div>
+            <div class="header-status">
+                <span class="status-dot"></span>
+                <span style="color: #b8cfbe; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem;">ONLINE</span>
+            </div>
+        </div>
+        <div class="header-scan-bar"></div>
+    </header>
+
+    <main>
+        <div class="chat-container">
+            <div class="chat-messages" id="messages">
+                <div class="message assistant">
+🤖 **Hello! I'm your Recon Assistant.**
+
+আমি যা করতে পারি:
+1. **Scan a website**: "Scan axiler.com"
+2. **View history**: "Show scan history"
+3. **Export PDF**: "Export PDF for axiler.com"
+
+Try one of these commands!
+                </div>
+            </div>
+            <div class="chat-input">
+                <input type="text" id="promptInput" placeholder="Ask me anything...">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const messages = document.getElementById('messages');
+        const input = document.getElementById('promptInput');
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        async function sendMessage() {
+            const prompt = input.value.trim();
+            if (!prompt) return;
+
+            addMessage('user', prompt);
+            input.value = '';
+            addMessage('assistant', '⏳ Processing your request...', true);
+
+            try {
+                const response = await fetch('/api/llm/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                const data = await response.json();
+                removeTyping();
+                addMessage('assistant', data.response);
+
+            } catch (err) {
+                removeTyping();
+                addMessage('assistant', '❌ Error: ' + err.message);
+            }
+        }
+
+        function addMessage(type, text, isTyping = false) {
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            if (isTyping) div.id = 'typing';
+            div.textContent = text;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function removeTyping() {
+            const typing = document.getElementById('typing');
+            if (typing) typing.remove();
+        }
+    </script>
+</body>
+</html>

@@ -1,11 +1,12 @@
 import subprocess
 import socket
 import os
-import time
 
 HOME = os.path.expanduser("~")
 GO_PATH = f"{HOME}/go/bin"
+os.environ["PATH"] = f"{GO_PATH}:{os.environ['PATH']}"
 
+# ── Extended subdomain list ──
 SOCKET_SUBDOMAINS = [
     "www", "mail", "blog", "api", "admin", "dev", "test", "shop", "support",
     "login", "signup", "app", "cdn", "static", "assets", "img", "video",
@@ -16,17 +17,21 @@ SOCKET_SUBDOMAINS = [
     "demo", "sandbox", "community", "forum", "chat", "help", "remote",
     "server", "backup", "cache", "proxy", "monitor", "analytics", "status",
     "dashboard", "manage", "start", "info", "apps", "video", "sip",
-    "cloud", "members", "bugs", "db", "ssh", "kernel", "mobi", "web"
+    "cloud", "members", "bugs", "db", "ssh", "kernel", "mobi", "web",
+    "docs", "download", "upload", "files", "media", "cdn", "images",
+    "audio", "stream", "live", "staging", "stage", "beta", "dev", "test",
+    "demo", "sandbox", "community", "forum", "chat", "support", "help",
+    "faq", "about", "contact", "careers", "jobs", "press", "news", "events",
+    "ss", "preview", "staging", "stage", "beta", "dev", "test", "demo",
+    "mail2", "mail3", "smtp2", "pop2", "imap2", "mx2", "mx3", "ns3", "ns4"
 ]
 
-def resolve_with_retry(domain: str, retries: int = 2) -> str:
-    for i in range(retries):
-        try:
-            return socket.gethostbyname(domain)
-        except:
-            if i < retries - 1:
-                time.sleep(0.3)
-    return None
+def run_cmd(cmd, timeout=20):
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        return result.stdout
+    except:
+        return ""
 
 def discover_subdomains(domain: str) -> dict:
     domain = domain.replace("https://", "").replace("http://", "").split("/")[0]
@@ -37,67 +42,46 @@ def discover_subdomains(domain: str) -> dict:
     print(f"\n[Subdomain Discovery] Target: {domain}")
     print("=" * 50)
     
-    # ── Tool 1: Subfinder (with error handling) ──
-    subfinder_path = f"{GO_PATH}/subfinder"
-    if os.path.exists(subfinder_path):
-        try:
-            print("[Subfinder] Running (30s timeout)...")
-            result = subprocess.run(
-                [subfinder_path, "-d", domain, "-silent"],
-                capture_output=True, text=True, timeout=30
-            )
-            count = 0
-            for line in result.stdout.split('\n'):
-                line = line.strip()
-                if line and domain in line:
-                    if line not in all_subdomains:
-                        all_subdomains.add(line)
-                        count += 1
-                        print(f"[Subfinder] Found: {line}")
-            print(f"[Subfinder] Total: {count}")
-        except subprocess.TimeoutExpired:
-            print("[Subfinder] ⏰ Timeout - continuing with other tools")
-        except Exception as e:
-            print(f"[Subfinder] Error: {e}")
-    else:
-        print("[Subfinder] Not installed")
+    # ── Tool 1: Assetfinder ──
+    print("[Assetfinder] Running...")
+    output = run_cmd(f"assetfinder --subs-only {domain}", timeout=25)
+    count = 0
+    for line in output.split('\n'):
+        line = line.strip()
+        if line and domain in line:
+            line = line.replace('*.', '')
+            if line not in all_subdomains:
+                all_subdomains.add(line)
+                count += 1
+                print(f"[Assetfinder] Found: {line}")
+    print(f"[Assetfinder] Total: {count}")
     
-    # ── Tool 2: Assetfinder (with error handling) ──
-    assetfinder_path = "/usr/bin/assetfinder"
-    if os.path.exists(assetfinder_path):
-        try:
-            print("[Assetfinder] Running (15s timeout)...")
-            result = subprocess.run(
-                [assetfinder_path, "--subs-only", domain],
-                capture_output=True, text=True, timeout=15
-            )
-            count = 0
-            for line in result.stdout.split('\n'):
-                line = line.strip()
-                if line and domain in line:
-                    if line not in all_subdomains:
-                        all_subdomains.add(line)
-                        count += 1
-                        print(f"[Assetfinder] Found: {line}")
-            print(f"[Assetfinder] Total: {count}")
-        except subprocess.TimeoutExpired:
-            print("[Assetfinder] ⏰ Timeout - continuing with socket")
-        except Exception as e:
-            print(f"[Assetfinder] Error: {e}")
-    else:
-        print("[Assetfinder] Not installed")
+    # ── Tool 2: Subfinder ──
+    print("[Subfinder] Running...")
+    output = run_cmd(f"subfinder -d {domain} -silent", timeout=25)
+    count = 0
+    for line in output.split('\n'):
+        line = line.strip()
+        if line and domain in line:
+            if line not in all_subdomains:
+                all_subdomains.add(line)
+                count += 1
+                print(f"[Subfinder] Found: {line}")
+    print(f"[Subfinder] Total: {count}")
     
-    # ── Tool 3: Socket (always works) ──
+    # ── Tool 3: Socket ──
     print("[Socket] Running...")
     socket_count = 0
     for sub in SOCKET_SUBDOMAINS:
         full_domain = f"{sub}.{domain}"
-        ip = resolve_with_retry(full_domain, retries=2)
-        if ip:
+        try:
+            ip = socket.gethostbyname(full_domain)
             if full_domain not in all_subdomains:
                 all_subdomains.add(full_domain)
                 socket_count += 1
                 print(f"[Socket] Found: {full_domain} -> {ip}")
+        except:
+            continue
     print(f"[Socket] Found: {socket_count}")
     
     # ── Format Results ──
@@ -118,5 +102,3 @@ def discover_subdomains(domain: str) -> dict:
         "subdomains": final_results,
         "total_found": len(final_results)
     }
-
-discover_subdomains_advanced = discover_subdomains

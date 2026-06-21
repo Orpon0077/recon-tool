@@ -3,66 +3,104 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from app.config import REQUEST_TIMEOUT, REQUEST_HEADERS
 from app.models import CrawlResult, EndpointInfo
-from app.modules.playwright_manager import playwright_manager
+import time
+import re
 
 def crawl_website(url: str) -> CrawlResult:
-    """Crawl website - tries Playwright first, then requests"""
+    """Crawl website - Playwright first, Requests fallback"""
     try:
         endpoints = []
         seen = set()
+        start_time = time.time()
         html_content = None
         
-        # Method 1: Playwright (for JS-rendered sites) - using shared manager
+        print(f"[Crawler] Starting crawl for {url}")
+        
+        # ── Method 1: Playwright (JS-rendered) ──
         try:
-            import asyncio
+            from playwright.sync_api import sync_playwright
             
-            async def _crawl():
-                page = await playwright_manager.new_page()
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                    await page.wait_for_timeout(2000)
-                    content = await page.content()
-                    await page.close()
-                    return content
-                except Exception as e:
-                    await page.close()
-                    raise e
-            
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            html_content = loop.run_until_complete(_crawl())
-            loop.close()
-            print("[Crawler] Using Playwright (JS-rendered)")
+            print("[Crawler] Trying Playwright (JS-rendered)...")
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-dev-shm-usage']
+                )
+                page = browser.new_page()
+                
+                # Longer timeout for JS sites
+                page.set_default_timeout(60000)
+                page.goto(url, wait_until="networkidle", timeout=60000)
+                page.wait_for_timeout(3000)
+                
+                # Get page content after JS execution
+                html_content = page.content()
+                browser.close()
+                print("[Crawler] ✅ Playwright succeeded")
         except Exception as e:
             print(f"[Crawler] Playwright failed: {e}")
         
-        # Method 2: Requests (fallback)
+        # ── Method 2: Requests (fallback) ──
         if not html_content:
             try:
-                response = requests.get(url, timeout=REQUEST_TIMEOUT, headers=REQUEST_HEADERS)
+                print("[Crawler] Trying Requests (static)...")
+                response = requests.get(
+                    url,
+                    timeout=REQUEST_TIMEOUT,
+                    headers=REQUEST_HEADERS,
+                    allow_redirects=True,
+                )
                 html_content = response.text
-                print("[Crawler] Using Requests (static HTML)")
+                print("[Crawler] ✅ Requests succeeded")
             except Exception as e:
                 print(f"[Crawler] Requests failed: {e}")
-                return CrawlResult(url=url, error=str(e))
+                return CrawlResult(url=url, error=f"Crawl failed: {str(e)[:100]}")
         
-        soup = BeautifulSoup(html_content, "html.parser")
+        # ── Parse HTML ──
+        if html_content:
+            soup = BeautifulSoup(html_content, "html.parser")
+            
+            # Find all links from anchor tags
+            for link in soup.find_all("a", href=True):
+                href = link.get("href")
+                if href and not href.startswith(("#", "mailto:", "tel:", "javascript:")):
+                    full_url = urljoin(url, href)
+                    clean_url = full_url.split('?')[0].split('#')[0]
+                    
+                    if clean_url not in seen and len(endpoints) < 100:
+                        seen.add(clean_url)
+                        endpoints.append(EndpointInfo(
+                            url=clean_url,
+                            method="GET",
+                            status_code=200,
+                            content_type="text/html"
+                        ))
+            
+            # ── Also find links from JavaScript ──
+            script_content = ""
+            for script in soup.find_all("script"):
+                if script.string:
+                    script_content += script.string
+            
+            # Find URLs in JS
+            js_links = re.findall(r'https?://[^\s"\'<>]+', script_content)
+            for js_link in js_links:
+                # Check if same domain
+                parsed_js = urlparse(js_link)
+                parsed_base = urlparse(url)
+                if parsed_js.netloc == parsed_base.netloc:
+                    clean_url = js_link.split('?')[0].split('#')[0]
+                    if clean_url not in seen and len(endpoints) < 100:
+                        seen.add(clean_url)
+                        endpoints.append(EndpointInfo(
+                            url=clean_url,
+                            method="GET",
+                            status_code=200,
+                            content_type="text/html"
+                        ))
         
-        # Find all links
-        for link in soup.find_all("a", href=True):
-            href = link.get("href")
-            if href and not href.startswith(("#", "mailto:", "tel:", "javascript:")):
-                full_url = urljoin(url, href)
-                clean_url = full_url.split('?')[0]
-                
-                if clean_url not in seen and len(endpoints) < 50:
-                    seen.add(clean_url)
-                    endpoints.append(EndpointInfo(
-                        url=clean_url,
-                        method="GET",
-                        status_code=200,
-                        content_type="text/html"
-                    ))
+        elapsed = time.time() - start_time
+        print(f"[Crawler] ✅ Found {len(endpoints)} endpoints in {elapsed:.1f}s")
         
         return CrawlResult(
             url=url,
@@ -71,5 +109,5 @@ def crawl_website(url: str) -> CrawlResult:
         )
         
     except Exception as e:
-        print(f"Crawl error: {e}")
-        return CrawlResult(url=url, error=str(e))
+        print(f"[Crawler] Error: {e}")
+        return CrawlResult(url=url, error=f"Crawl error: {str(e)[:100]}")
