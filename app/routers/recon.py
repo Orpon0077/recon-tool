@@ -26,23 +26,23 @@ async def api_full_scan(payload: ScanRequest) -> dict:
     try:
         url = payload.url
         
-        async def run_sync_with_timeout(func, *args, timeout=15):
+        async def run_sync_with_timeout(func, *args, timeout=25):
             try:
                 return await asyncio.wait_for(asyncio.to_thread(func, *args), timeout=timeout)
             except asyncio.TimeoutError:
                 return {"error": "Timeout"}
         
-        async def run_async_with_timeout(func, *args, timeout=15):
+        async def run_async_with_timeout(func, *args, timeout=25):
             try:
                 return await asyncio.wait_for(func(*args), timeout=timeout)
             except asyncio.TimeoutError:
                 return {"error": "Timeout"}
         
         # ── Fast Modules ──
-        ssl_task = run_sync_with_timeout(analyze_ssl, url, timeout=8)
-        security_task = run_sync_with_timeout(analyze_security_headers, url, timeout=8)
-        firewall_task = run_sync_with_timeout(detect_firewall, url, timeout=8)
-        tech_task = run_sync_with_timeout(detect_technologies, url, timeout=12)
+        ssl_task = run_sync_with_timeout(analyze_ssl, url, timeout=25)
+        security_task = run_sync_with_timeout(analyze_security_headers, url, timeout=25)
+        firewall_task = run_sync_with_timeout(detect_firewall, url, timeout=25)
+        tech_task = run_sync_with_timeout(detect_technologies, url, timeout=20)
         
         # ── Crawling (30s timeout for JS-rendered sites) ──
         crawl_task = run_sync_with_timeout(crawl_website, url, timeout=60)
@@ -51,10 +51,10 @@ async def api_full_scan(payload: ScanRequest) -> dict:
         subdomain_task = run_sync_with_timeout(discover_subdomains, url, timeout=50)
         
         # ── JS Scanner (18s timeout) ──
-        js_task = run_sync_with_timeout(scan_javascript, url, timeout=18)
+        js_task = run_sync_with_timeout(scan_javascript, url, timeout=25)
         
         # ── Port Scan (30s timeout for All Ports) ──
-        ports_task = run_sync_with_timeout(scan_ports, url, payload.port_option, payload.custom_ports, timeout=30)
+        ports_task = run_sync_with_timeout(scan_ports, url, payload.port_option, payload.custom_ports, timeout=60)
         
         # ── Screenshot (45s timeout, runs independently) ──
         screenshot_task = asyncio.create_task(run_async_with_timeout(capture_screenshot, url, timeout=60))

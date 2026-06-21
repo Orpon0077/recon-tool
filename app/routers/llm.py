@@ -28,7 +28,6 @@ async def execute_scan(url: str) -> Dict:
     
     print(f"[LLM] Scanning: {url}")
     
-    # Run all modules
     ssl = await asyncio.to_thread(analyze_ssl, url)
     security = await asyncio.to_thread(analyze_security_headers, url)
     ports = await asyncio.to_thread(scan_ports, url)
@@ -60,7 +59,7 @@ async def llm_chat(request: LLMRequest):
     
     print(f"[LLM] Prompt: {request.prompt}")
     
-    # ── Scan Intent ──
+    # ── Intent Detection ──
     if "scan" in prompt or "recon" in prompt or "analyze" in prompt:
         url_match = re.search(r'(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', request.prompt)
         
@@ -79,9 +78,8 @@ async def llm_chat(request: LLMRequest):
             
             tool_calls.append({"tool": "scan_website", "arguments": {"url": url}})
         else:
-            response = "❌ URL খুঁজে পাইনি। দয়া করে একটি URL দিন যেমন 'scan axiler.com'"
+            response = "❌ Could not find a URL. Please provide a URL like 'scan axiler.com'"
     
-    # ── History Intent ──
     elif "history" in prompt:
         scans = await get_all_scans()
         if scans:
@@ -89,13 +87,31 @@ async def llm_chat(request: LLMRequest):
             for i, s in enumerate(scans[:10], 1):
                 response += f"{i}. {s.get('url')} - {s.get('timestamp')}\n"
         else:
-            response = "📋 কোন scan পাওয়া যায়নি।"
+            response = "📋 No scans found. Run a scan first!"
     
-    # ── Help Intent ──
+    elif "pdf" in prompt or "export" in prompt:
+        url_match = re.search(r'(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', request.prompt)
+        if url_match:
+            url = url_match.group(0)
+            from app.modules.pdf_generator import generate_pdf_report
+            scans = await get_all_scans()
+            for s in scans:
+                if s.get('url') == url:
+                    full_scan = await get_scan_by_id(s['id'])
+                    if full_scan:
+                        filepath = await asyncio.to_thread(generate_pdf_report, full_scan.get('results', {}), url)
+                        response = f"✅ **PDF Report generated!**\n{filepath}"
+                        results = {"pdf_url": f"/{filepath}"}
+                        break
+            else:
+                response = f"❌ No scan found for {url}. Please run a scan first!"
+        else:
+            response = "❌ Please provide a URL like 'export PDF for axiler.com'"
+    
     else:
         response = """🤖 **I'm your Recon Assistant!**
 
-আমি যা করতে পারি:
+I can help you with:
 1. **Scan a website**: "Scan axiler.com"
 2. **View history**: "Show scan history"
 3. **Export PDF**: "Export PDF for axiler.com"

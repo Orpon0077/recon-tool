@@ -1,12 +1,11 @@
-# ── Firewall/WAF Detection Module ──────────────────────────
-# Merges: Headers + Wappalyzer + wafw00f
-
+# ── Firewall/WAF Detection Module (Fast Mode) ──────────────
 import requests
+import subprocess
+import re
+import time
 from app.config import REQUEST_TIMEOUT, REQUEST_HEADERS
 from app.models import FirewallResult
-from app.modules.wafw00f_detection import detect_with_wafw00f
 
-# ── WAF Headers Signatures ──
 WAF_HEADERS = {
     "cf-ray": "Cloudflare",
     "cf-cache-status": "Cloudflare",
@@ -23,32 +22,33 @@ WAF_HEADERS = {
 }
 
 def detect_firewall(url: str) -> FirewallResult:
-    """Detect WAF using multiple sources and merge results"""
+    """Fast WAF detection - headers first, wafw00f only if needed"""
     
+    start_time = time.time()
     detected_waf = None
     evidence_list = []
     sources = []
     
-    # ── 1. Header Detection ──
+    # ── 1. Headers Detection (Always fast) ──
     try:
+        print("[Firewall] Checking headers...")
         response = requests.get(
             url,
-            timeout=REQUEST_TIMEOUT,
+            timeout=10,
             headers=REQUEST_HEADERS,
             allow_redirects=True,
         )
         resp_headers = {k.lower(): v for k, v in response.headers.items()}
         server_value = resp_headers.get("server", "").lower()
         
-        # Check headers
         for header, waf_name in WAF_HEADERS.items():
             if header in resp_headers:
                 detected_waf = waf_name
                 evidence_list.append(f"Header: {header}")
                 sources.append("headers")
+                print(f"[Firewall] Found: {detected_waf} (header)")
                 break
         
-        # Check server header
         if not detected_waf:
             server_wafs = {
                 "cloudflare": "Cloudflare",
@@ -65,48 +65,79 @@ def detect_firewall(url: str) -> FirewallResult:
                     detected_waf = name
                     evidence_list.append(f"Server: {server_value}")
                     sources.append("server")
+                    print(f"[Firewall] Found: {detected_waf} (server)")
                     break
     except Exception as e:
-        print(f"[Firewall] Header detection error: {e}")
+        print(f"[Firewall] Header error: {e}")
     
-    # ── 2. wafw00f Detection ──
-    if not detected_waf:
-        print("[Firewall] Running wafw00f...")
-        wafw00f_result = detect_with_wafw00f(url)
-        if wafw00f_result.get("detected"):
-            detected_waf = wafw00f_result.get("firewall_name")
-            evidence_list.append("wafw00f")
-            sources.append("wafw00f")
-            print(f"[Firewall] wafw00f found: {detected_waf}")
-    
-    # ── 3. Wappalyzer Detection (if available) ──
+    # ── 2. wafw00f (only if headers didn't detect) ──
     if not detected_waf:
         try:
+            print("[Firewall] Running wafw00f (15s timeout)...")
+            result = subprocess.run(
+                f"wafw00f {url}",
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+            output = result.stdout + result.stderr
+            
+            patterns = [
+                r"The site (.+) is behind (.+)",
+                r"WAF Detected: (.+)",
+                r"Detected WAF: (.+)",
+                r"is behind (.+)",
+                r"WAF: (.+)",
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, output, re.IGNORECASE)
+                if match:
+                    waf_name = match.group(1).strip()
+                    waf_name = re.sub(r'[^a-zA-Z0-9\s\-\.]', '', waf_name)
+                    if waf_name and waf_name.lower() not in ['none', 'unknown', '']:
+                        detected_waf = waf_name
+                        evidence_list.append("wafw00f")
+                        sources.append("wafw00f")
+                        print(f"[Firewall] Found: {detected_waf} (wafw00f)")
+                        break
+        except subprocess.TimeoutExpired:
+            print("[Firewall] wafw00f timeout")
+        except Exception as e:
+            print(f"[Firewall] wafw00f error: {e}")
+    
+    # ── 3. Wappalyzer (skip if already found) ──
+    if not detected_waf:
+        try:
+            print("[Firewall] Quick Wappalyzer...")
             from wappalyzer import Wappalyzer
             wappalyzer = Wappalyzer()
             results = wappalyzer.analyze(url)
-            
-            for tech_name, tech_data in results.items():
+            for tech_name in results:
                 if 'waf' in tech_name.lower() or 'cloudflare' in tech_name.lower():
                     detected_waf = tech_name
                     evidence_list.append("Wappalyzer")
                     sources.append("wappalyzer")
+                    print(f"[Firewall] Found: {detected_waf} (Wappalyzer)")
                     break
         except Exception as e:
-            print(f"[Firewall] Wappalyzer error: {e}")
+            print(f"[Firewall] Wappalyzer skip: {e}")
     
-    # ── Return Merged Result ──
+    elapsed = time.time() - start_time
+    print(f"[Firewall] Done in {elapsed:.1f}s")
+    
     if detected_waf:
         return FirewallResult(
             url=url,
             detected=True,
             firewall_name=detected_waf,
-            evidence=f"Detected by: {', '.join(sources)}; Evidence: {'; '.join(evidence_list)}"
+            evidence=f"by: {', '.join(sources)}; {'; '.join(evidence_list)}"
         )
     else:
         return FirewallResult(
             url=url,
             detected=False,
             firewall_name=None,
-            evidence="No WAF detected by headers, wafw00f, or Wappalyzer"
+            evidence="No WAF detected"
         )
