@@ -7,7 +7,7 @@ const resultsGrid = document.getElementById("resultsGrid");
 const statusLabel = document.getElementById("statusLabel");
 const statusDot   = document.getElementById("statusDot");
 
-// ── Port Option Handler ───────────────────────────────────
+// ── Check URL for scan_id on load ──
 document.addEventListener("DOMContentLoaded", function() {
   const customRadio = document.getElementById("customPortRadio");
   const customInput = document.getElementById("customPorts");
@@ -19,21 +19,28 @@ document.addEventListener("DOMContentLoaded", function() {
     customInput.disabled = !customRadio.checked;
   }
   
-  // Load history on page load
-  loadHistory();
+  // ── Check for scan_id in URL ──
+  const urlParams = new URLSearchParams(window.location.search);
+  const scanId = urlParams.get('scan_id');
+  
+  if (scanId) {
+    console.log("Loading scan from URL:", scanId);
+    // Small delay to ensure DOM is ready
+    setTimeout(() => loadScan(scanId), 500);
+  } else {
+    loadHistory();
+  }
 });
 
 urlInput.addEventListener("keydown", e => {
   if (e.key === "Enter") startScan();
 });
 
-// ── Set Status ─────────────────────────────────────────────
 function setStatus(state, text) {
   if (statusDot) statusDot.className = `status-dot ${state}`;
   if (statusLabel) statusLabel.textContent = text;
 }
 
-// ── Log function ───────────────────────────────────────────
 function log(text, type = "info") {
   if (!terminalLog) return;
   const line = document.createElement("span");
@@ -46,64 +53,58 @@ function log(text, type = "info") {
 // ── Load History ──────────────────────────────────────────
 async function loadHistory() {
   const historyList = document.getElementById("historyList");
-  if (!historyList) {
-    console.error("historyList element not found");
-    return;
-  }
+  if (!historyList) return;
   
   try {
-    console.log("Loading history...");
     historyList.innerHTML = `<div class="history-empty">Loading...</div>`;
-    
     const response = await fetch("/api/history");
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const scans = await response.json();
-    console.log("History data:", scans);
     
     if (!scans || scans.length === 0) {
       historyList.innerHTML = `<div class="history-empty">No scans yet. Run a scan!</div>`;
       return;
     }
     
-    // Show last 20 (newest first from API)
     const last20 = scans.slice(0, 20);
-    
-    historyList.innerHTML = last20.map(scan => {
-      const url = scan.url || 'Unknown';
-      const timestamp = scan.timestamp || 'Unknown';
-      const id = scan.id || '';
-      
-      return `
-        <div class="history-item" onclick="loadScan('${id}')">
-          <div class="history-url">${esc(url)}</div>
-          <div class="history-time">${esc(timestamp)}</div>
-        </div>
-      `;
-    }).join("");
-    
-    console.log(`Loaded ${last20.length} history items`);
-    
+    historyList.innerHTML = last20.map(scan => `
+      <div class="history-item" onclick="loadScan('${scan.id}')">
+        <div class="history-url">${esc(scan.url)}</div>
+        <div class="history-time">${esc(scan.timestamp)}</div>
+      </div>
+    `).join("");
   } catch (err) {
-    console.error("Failed to load history:", err);
     historyList.innerHTML = `<div class="history-empty">Error loading history</div>`;
   }
 }
 
-// ── Load Old Scan ─────────────────────────────────────────
+// ── Load Scan by ID ────────────────────────────────────────
 async function loadScan(scanId) {
   try {
+    console.log("Loading scan:", scanId);
     setStatus("loading", "LOADING...");
+    
     const response = await fetch(`/api/history/${scanId}`);
     const data = await response.json();
-    if (data.error) return;
-
+    
+    if (data.error) {
+      console.error("Scan not found:", data.error);
+      setStatus("error", "NOT FOUND");
+      return;
+    }
+    
+    console.log("Scan data:", data);
+    
+    if (!data.results) {
+      console.error("No results in data");
+      return;
+    }
+    
+    // Show results grid
     if (resultsGrid) resultsGrid.style.display = "grid";
     if (logSection) logSection.style.display = "none";
     
+    // Render all panels
     renderSSL(data.results.ssl);
     renderSecurity(data.results.security_headers);
     renderPorts(data.results.ports);
@@ -118,8 +119,14 @@ async function loadScan(scanId) {
     if (data.results.subdomains) {
       renderSubdomains(data.results.subdomains);
     }
-
+    
     setStatus("done", "LOADED FROM HISTORY");
+    
+    // Update URL
+    const url = new URL(window.location);
+    url.searchParams.set('scan_id', scanId);
+    window.history.replaceState({}, '', url);
+    
   } catch (err) {
     console.error("Failed to load scan:", err);
     setStatus("error", "ERROR");
@@ -234,7 +241,11 @@ async function startScan() {
     setStatus("done", "COMPLETE");
     window._lastScanData = data;
     
-    // Refresh history after scan
+    // Update URL with scan_id
+    const url = new URL(window.location);
+    url.searchParams.set('scan_id', data.scan_id);
+    window.history.replaceState({}, '', url);
+    
     loadHistory();
     
     const pdfBtn = document.getElementById("downloadPdfBtn");
@@ -432,7 +443,6 @@ function renderSubdomains(data) {
   const body = document.getElementById("subdomainBody");
   const status = document.getElementById("subdomainStatus");
   if (!body) return;
-  console.log("Subdomain Data:", data);
   if (!data) { body.innerHTML = `<p class="no-data">No data</p>`; return; }
   if (data.error) {
     body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;

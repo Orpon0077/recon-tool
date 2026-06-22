@@ -37,6 +37,38 @@
             color: #00ff88;
             border-left: 2px solid #00ff88;
         }
+        .message .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .message .btn-group a {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #003d20;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 4px;
+            text-decoration: none;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .message .btn-group a:hover {
+            background: #00ff88;
+            color: #050807;
+        }
+        .message .btn-group .pdf-btn {
+            background: #1a1a2e;
+            border-color: #ff8800;
+            color: #ff8800;
+        }
+        .message .btn-group .pdf-btn:hover {
+            background: #ff8800;
+            color: #050807;
+        }
         .chat-input {
             display: flex;
             gap: 10px;
@@ -107,14 +139,14 @@
         <div class="chat-container">
             <div class="chat-messages" id="messages">
                 <div class="message assistant">
- **Hello! I'm your Recon Assistant.**
+Hello! I am your Recon Assistant.
 
 I can help you with:
-1. **Scan a website**: "Scan axiler.com"
-2. **View history**: "Show scan history"
-3. **Export PDF**: "Export PDF for axiler.com"
+1. Scan a website: "Scan axiler.com"
+2. View history: "Show scan history"
+3. Export PDF: "Export PDF for axiler.com"
 
-Try one of these commands!
+Try one of these commands.
                 </div>
             </div>
             <div class="chat-input">
@@ -138,7 +170,7 @@ Try one of these commands!
 
             addMessage('user', prompt);
             input.value = '';
-            addMessage('assistant', '⏳ Processing your request...', true);
+            addMessage('assistant', 'Processing your request...', true);
 
             try {
                 const response = await fetch('/api/llm/chat', {
@@ -149,11 +181,55 @@ Try one of these commands!
 
                 const data = await response.json();
                 removeTyping();
-                addMessage('assistant', data.response);
+
+                let responseText = data.response;
+
+                // ── Extract scan_id from response ──
+                const scanIdMatch = responseText.match(/Scan ID: ([a-f0-9]+)/);
+                const scanId = scanIdMatch ? scanIdMatch[1] : null;
+
+                if (scanId) {
+                    responseText += '\n\n';
+                    responseText += '<div class="btn-group">';
+                    responseText += `<a href="/?scan_id=${scanId}" target="_blank">View Dashboard</a>`;
+                    responseText += `<a href="#" class="pdf-btn" onclick="downloadPDF('${scanId}')">Download PDF</a>`;
+                    responseText += '</div>';
+                }
+
+                addMessage('assistant', responseText);
 
             } catch (err) {
                 removeTyping();
-                addMessage('assistant', '❌ Error: ' + err.message);
+                addMessage('assistant', 'Error: ' + err.message);
+            }
+        }
+
+        // ── PDF Download Function ──
+        async function downloadPDF(scanId) {
+            try {
+                const response = await fetch(`/api/history/${scanId}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+
+                const pdfResponse = await fetch('/api/export-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data.results)
+                });
+
+                const pdfResult = await pdfResponse.json();
+
+                if (pdfResult.success) {
+                    window.location.href = pdfResult.download_url;
+                } else {
+                    alert('PDF generation failed: ' + pdfResult.error);
+                }
+            } catch (err) {
+                alert('Error generating PDF: ' + err.message);
             }
         }
 
@@ -161,7 +237,7 @@ Try one of these commands!
             const div = document.createElement('div');
             div.className = `message ${type}`;
             if (isTyping) div.id = 'typing';
-            div.textContent = text;
+            div.innerHTML = text.replace(/\n/g, '<br>');
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
         }

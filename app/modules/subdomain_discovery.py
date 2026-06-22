@@ -7,6 +7,7 @@ HOME = os.path.expanduser("~")
 GO_PATH = f"{HOME}/go/bin"
 os.environ["PATH"] = f"{GO_PATH}:{os.environ['PATH']}"
 
+# ── Extended Subdomain List ──
 SOCKET_SUBDOMAINS = [
     "www", "mail", "blog", "api", "admin", "dev", "test", "shop", "support",
     "login", "signup", "app", "cdn", "static", "assets", "img", "video",
@@ -18,10 +19,12 @@ SOCKET_SUBDOMAINS = [
     "server", "backup", "cache", "proxy", "monitor", "analytics", "status",
     "dashboard", "manage", "start", "info", "apps", "video", "sip",
     "cloud", "members", "bugs", "db", "ssh", "kernel", "mobi", "web",
-    "ss", "preview"
+    "ss", "preview", "staging", "stage", "beta", "dev", "test", "demo",
+    "mail2", "mail3", "smtp2", "pop2", "imap2", "mx2", "mx3", "ns3", "ns4",
+    "cdn2", "cdn3", "api2", "api3", "dev2", "test2", "stage2", "blog2"
 ]
 
-def run_cmd(cmd, timeout=25):
+def run_cmd(cmd, timeout=30):
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
         return result.stdout
@@ -34,7 +37,7 @@ def discover_subdomains(domain: str) -> dict:
     
     all_subdomains = set()
     
-    # ── Always add root domain ──
+    # ── Add root domain ──
     try:
         root_ip = socket.gethostbyname(domain)
         all_subdomains.add(domain)
@@ -46,8 +49,8 @@ def discover_subdomains(domain: str) -> dict:
     print("=" * 50)
     
     # ── Assetfinder ──
-    print("[Assetfinder] Running (25s)...")
-    output = run_cmd(f"assetfinder --subs-only {domain}", timeout=25)
+    print("[Assetfinder] Running (30s)...")
+    output = run_cmd(f"assetfinder --subs-only {domain}", timeout=30)
     for line in output.split('\n'):
         line = line.strip()
         if line and domain in line:
@@ -57,8 +60,8 @@ def discover_subdomains(domain: str) -> dict:
                 print(f"[Assetfinder] {line}")
     
     # ── Subfinder ──
-    print("[Subfinder] Running (25s)...")
-    output = run_cmd(f"subfinder -d {domain} -silent", timeout=25)
+    print("[Subfinder] Running (30s)...")
+    output = run_cmd(f"subfinder -d {domain} -silent", timeout=30)
     for line in output.split('\n'):
         line = line.strip()
         if line and domain in line:
