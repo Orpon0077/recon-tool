@@ -54,3 +54,21 @@ async def shutdown_event():
     from app.modules.playwright_manager import playwright_manager
     await playwright_manager.close()
     print("[Shutdown] Playwright cleaned up")
+
+# ── Automation Router ──
+from app.routers.automation import router as automation_router
+app.include_router(automation_router)
+
+# ── Start Scheduler on startup ──
+@app.on_event("startup")
+async def startup_event():
+    from app.scheduler import scheduler
+    scheduler.start()
+    print("🚀 Scheduler started!")
+
+# ── Stop Scheduler on shutdown ──
+@app.on_event("shutdown")
+async def shutdown_event():
+    from app.scheduler import scheduler
+    scheduler.stop()
+    print("🛑 Scheduler stopped!")

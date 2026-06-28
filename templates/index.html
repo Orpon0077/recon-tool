@@ -268,3 +268,29 @@
   </script>
 </body>
 </html>
+
+      <!-- Automation Panel -->
+      <section class="panel" id="automationPanel" style="margin-top: 20px;">
+        <div class="panel-header">
+          <span class="panel-title">🤖 AUTOMATION STATUS</span>
+          <span class="panel-tag">// live</span>
+        </div>
+        <div class="panel-body" id="automationBody">
+          <div class="data-row">
+            <span class="data-key">Status</span>
+            <span class="data-val ok" id="autoStatus">Loading...</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">Total Jobs</span>
+            <span class="data-val" id="totalJobs">-</span>
+          </div>
+          <div id="jobList">
+            <p class="no-data">Loading jobs...</p>
+          </div>
+          <div style="margin-top: 15px;">
+            <button onclick="triggerAutoScan()" class="btn-scan" style="padding: 8px 20px; font-size: 0.7rem;">
+              ⚡ Trigger Scan Now
+            </button>
+          </div>
+        </div>
+      </section>

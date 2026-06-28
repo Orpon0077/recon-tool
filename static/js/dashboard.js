@@ -503,3 +503,73 @@ function esc(str) {
   if (str == null) return "";
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+
+// ── Load Automation Status ──
+async function loadAutomationStatus() {
+  try {
+    const response = await fetch('/api/automation/status');
+    const data = await response.json();
+    
+    document.getElementById('autoStatus').textContent = data.status || 'Unknown';
+    document.getElementById('totalJobs').textContent = data.total_jobs || 0;
+    
+    const jobList = document.getElementById('jobList');
+    if (data.jobs && data.jobs.length > 0) {
+      jobList.innerHTML = data.jobs.map(job => `
+        <div class="data-row" style="font-size: 0.75rem;">
+          <span class="data-key">${job.name}</span>
+          <span class="data-val">Next: ${job.next_run ? new Date(job.next_run).toLocaleString() : 'N/A'}</span>
+        </div>
+      `).join('');
+    } else {
+      jobList.innerHTML = '<p class="no-data">No scheduled jobs</p>';
+    }
+  } catch (err) {
+    console.error('Failed to load automation status:', err);
+    document.getElementById('autoStatus').textContent = 'Error';
+  }
+}
+
+// ── Trigger Auto Scan ──
+async function triggerAutoScan() {
+  const urlInput = document.getElementById('urlInput');
+  const url = urlInput.value.trim();
+  
+  if (!url) {
+    alert('Please enter a URL first!');
+    return;
+  }
+  
+  const btn = event.target;
+  btn.textContent = '⏳ Scanning...';
+  btn.disabled = true;
+  
+  try {
+    const response = await fetch('/api/automation/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [url], notify: false })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success > 0) {
+      alert(`✅ Scan started for ${url}\nScan ID: ${data.results[0].scan_id}`);
+      // Reload to show results
+      window.location.href = `/?scan_id=${data.results[0].scan_id}`;
+    } else {
+      alert('❌ Scan failed: ' + (data.results[0].error || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('❌ Error: ' + err.message);
+  } finally {
+    btn.textContent = '⚡ Trigger Scan Now';
+    btn.disabled = false;
+  }
+}
+
+// ── Load automation on page load ──
+document.addEventListener('DOMContentLoaded', function() {
+  // ... existing code ...
+  loadAutomationStatus();
+});
