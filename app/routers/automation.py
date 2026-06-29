@@ -1,10 +1,8 @@
-# ── Automation Router ──────────────────────────────────────
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
-from app.automation import run_automated_scan, send_scan_report
-from app.scheduler import scheduler
+from app.automation.core import run_automated_scan, send_scan_report
+from app.automation.scheduler import scheduler
 
 router = APIRouter(prefix="/api/automation", tags=["automation"])
 
@@ -14,9 +12,7 @@ class ScanRequest(BaseModel):
 
 @router.post("/scan")
 async def trigger_scan(request: ScanRequest):
-    """Trigger an automated scan"""
     results = []
-    
     for url in request.urls:
         result = await run_automated_scan(url)
         results.append({
@@ -25,7 +21,6 @@ async def trigger_scan(request: ScanRequest):
             "scan_id": result.get("scan_id"),
             "error": result.get("error")
         })
-        
         if request.notify and result.get("success"):
             await send_scan_report(url, result)
     
@@ -38,15 +33,13 @@ async def trigger_scan(request: ScanRequest):
 
 @router.get("/jobs")
 async def get_jobs():
-    """Get all scheduled jobs with next run time"""
     jobs = scheduler.get_jobs()
     return {
         "jobs": [
             {
                 "id": job.id,
                 "name": job.name,
-                "trigger": str(job.trigger),
-                "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None
+                "trigger": str(job.trigger)
             }
             for job in jobs
         ]
@@ -54,7 +47,6 @@ async def get_jobs():
 
 @router.get("/status")
 async def get_automation_status():
-    """Get automation system status"""
     jobs = scheduler.get_jobs()
     return {
         "status": "running",
@@ -62,7 +54,7 @@ async def get_automation_status():
         "jobs": [
             {
                 "name": job.name,
-                "next_run": job.next_run_time.isoformat() if job.next_run_time else None
+                "next_run": str(job.next_run_time) if hasattr(job, 'next_run_time') and job.next_run_time else None
             }
             for job in jobs
         ]

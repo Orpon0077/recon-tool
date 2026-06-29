@@ -9,36 +9,34 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
   <style>
-    /* ── Floating AI Chat Button (No Emoji) ── */
-    .ai-chat-float {
+    .ai-chat-bottom {
       position: fixed;
       bottom: 30px;
-      right: 30px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 9999;
       background: linear-gradient(135deg, #00ff88, #00cc6a);
       border: 2px solid #00ff88;
       border-radius: 50px;
-      padding: 14px 28px;
+      padding: 12px 28px;
       color: #050807;
       font-family: 'Orbitron', monospace;
       font-size: 0.75rem;
       font-weight: 900;
       letter-spacing: 0.12em;
       text-decoration: none;
-      box-shadow: 0 0 30px rgba(0, 255, 136, 0.5), 0 0 60px rgba(0, 255, 136, 0.2);
+      box-shadow: 0 0 30px rgba(0, 255, 136, 0.4), 0 0 60px rgba(0, 255, 136, 0.15);
       transition: all 0.3s ease;
       display: flex;
       align-items: center;
       gap: 10px;
       cursor: pointer;
     }
-    
-    .ai-chat-float:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 50px rgba(0, 255, 136, 0.7), 0 0 80px rgba(0, 255, 136, 0.3);
+    .ai-chat-bottom:hover {
+      transform: translateX(-50%) scale(1.05);
+      box-shadow: 0 0 50px rgba(0, 255, 136, 0.6), 0 0 80px rgba(0, 255, 136, 0.25);
     }
-    
-    .ai-chat-float .pulse {
+    .ai-chat-bottom .pulse {
       display: inline-block;
       width: 10px;
       height: 10px;
@@ -46,28 +44,38 @@
       border-radius: 50%;
       animation: pulse-ai 1.2s ease-in-out infinite;
     }
-    
     @keyframes pulse-ai {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.4; transform: scale(0.7); }
     }
-    
-    .ai-chat-float .ai-text {
-      font-size: 0.75rem;
-    }
-    
-    /* ── Responsive ── */
     @media (max-width: 600px) {
-      .ai-chat-float {
+      .ai-chat-bottom {
         bottom: 20px;
-        right: 20px;
-        padding: 10px 18px;
-        font-size: 0.6rem;
-      }
-      .ai-chat-float .ai-text {
+        padding: 10px 20px;
         font-size: 0.6rem;
       }
     }
+    .email-field {
+      background: #050807;
+      border: 1px solid #1a2e20;
+      color: #b8cfbe;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.75rem;
+      width: 100%;
+    }
+    .email-field:focus {
+      border-color: #00ff88;
+      outline: none;
+    }
+    .email-status {
+      margin-top: 8px;
+      font-size: 0.7rem;
+    }
+    .email-status.success { color: #00ff88; }
+    .email-status.error { color: #ff4444; }
+    .email-status.loading { color: #ffaa00; }
   </style>
 </head>
 <body>
@@ -92,7 +100,6 @@
 
   <main class="main-content">
     <div class="scan-layout">
-      <!-- Left Sidebar: History -->
       <aside class="history-panel">
         <div class="panel-header">
           <span class="panel-title">SCAN HISTORY</span>
@@ -103,8 +110,8 @@
         </div>
       </aside>
 
-      <!-- Right Side: Main Content -->
       <div class="scan-main">
+        <!-- Input Panel -->
         <section class="panel input-panel">
           <div class="panel-header">
             <span class="panel-title">TARGET ACQUISITION</span>
@@ -123,8 +130,6 @@
               <span class="btn-text">DOWNLOAD PDF</span>
             </button>
           </div>
-          
-          <!-- Port Scan Options -->
           <div class="port-options" style="margin-top: 15px; padding: 10px 16px; border-top: 1px solid #1a2e20; background: #0d1210;">
             <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
               <span style="color: #00ff88; font-family: 'Share Tech Mono', monospace; font-size: 0.75rem;">PORT SCAN:</span>
@@ -143,6 +148,7 @@
           </div>
         </section>
 
+        <!-- Log Panel -->
         <section class="panel log-panel" id="logSection" style="display:none">
           <div class="panel-header">
             <span class="panel-title">TERMINAL OUTPUT</span>
@@ -151,8 +157,8 @@
           <div class="terminal-log" id="terminalLog"></div>
         </section>
 
+        <!-- Results Grid -->
         <div class="results-grid" id="resultsGrid" style="display:none">
-          <!-- SSL -->
           <section class="panel result-panel" id="sslPanel">
             <div class="panel-header">
               <span class="panel-title">SSL/TLS ANALYSIS</span>
@@ -160,8 +166,6 @@
             </div>
             <div class="panel-body" id="sslBody"></div>
           </section>
-
-          <!-- Security Headers -->
           <section class="panel result-panel" id="securityPanel">
             <div class="panel-header">
               <span class="panel-title">SECURITY HEADERS</span>
@@ -169,8 +173,6 @@
             </div>
             <div class="panel-body" id="securityBody"></div>
           </section>
-
-          <!-- Port Scan -->
           <section class="panel result-panel" id="portsPanel">
             <div class="panel-header">
               <span class="panel-title">PORT SCANNING</span>
@@ -178,8 +180,6 @@
             </div>
             <div class="panel-body" id="portsBody"></div>
           </section>
-
-          <!-- Screenshot -->
           <section class="panel result-panel screenshot-panel" id="screenshotPanel">
             <div class="panel-header">
               <span class="panel-title">VISUAL CAPTURE</span>
@@ -187,8 +187,6 @@
             </div>
             <div class="panel-body" id="screenshotBody"></div>
           </section>
-
-          <!-- Firewall -->
           <section class="panel result-panel" id="firewallPanel">
             <div class="panel-header">
               <span class="panel-title">FIREWALL DETECTION</span>
@@ -196,8 +194,6 @@
             </div>
             <div class="panel-body" id="firewallBody"></div>
           </section>
-
-          <!-- Tech Detection -->
           <section class="panel result-panel" id="techPanel">
             <div class="panel-header">
               <span class="panel-title">TECH DETECTION</span>
@@ -205,8 +201,6 @@
             </div>
             <div class="panel-body" id="techBody"></div>
           </section>
-
-          <!-- JS Scanner -->
           <section class="panel result-panel" id="jsScannerPanel">
             <div class="panel-header">
               <span class="panel-title">JS SCANNER</span>
@@ -216,8 +210,6 @@
               <p class="no-data">JavaScript scanner will run automatically.</p>
             </div>
           </section>
-
-          <!-- Crawl Results -->
           <section class="panel result-panel crawl-panel" id="crawlPanel">
             <div class="panel-header">
               <span class="panel-title">CRAWL RESULTS</span>
@@ -225,8 +217,6 @@
             </div>
             <div class="panel-body" id="crawlBody"></div>
           </section>
-
-          <!-- Subdomain Discovery -->
           <section class="panel result-panel crawl-panel" id="subdomainPanel">
             <div class="panel-header">
               <span class="panel-title">SUBDOMAIN DISCOVERY</span>
@@ -237,6 +227,63 @@
             </div>
           </section>
         </div>
+
+        <!-- ── EMAIL CONFIGURATION PANEL (With Password) ── -->
+        <section class="panel" id="emailPanel" style="margin-top: 20px;">
+          <div class="panel-header">
+            <span class="panel-title">📧 EMAIL CONFIGURATION</span>
+            <span class="panel-tag">// settings</span>
+          </div>
+          <div class="panel-body">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="color: #6a8070; font-size: 0.65rem; display: block; margin-bottom: 4px;">Sender Email (Gmail)</label>
+                <input type="email" id="senderEmail" class="email-field" placeholder="your_email@gmail.com">
+              </div>
+              <div>
+                <label style="color: #6a8070; font-size: 0.65rem; display: block; margin-bottom: 4px;">App Password (16 digit)</label>
+                <input type="password" id="senderPassword" class="email-field" placeholder="xxxx xxxx xxxx xxxx">
+              </div>
+            </div>
+            <div style="margin-top: 10px;">
+              <label style="color: #6a8070; font-size: 0.65rem; display: block; margin-bottom: 4px;">Recipient Email(s)</label>
+              <input type="text" id="recipientEmails" class="email-field" placeholder="email1@gmail.com, email2@gmail.com">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
+              <button onclick="saveEmailConfig()" class="btn-scan" style="padding: 8px 20px; font-size: 0.7rem;">💾 Save</button>
+              <button onclick="testEmailConfig()" class="btn-scan" style="padding: 8px 20px; font-size: 0.7rem; background: #1a1a2e; border-color: #ff8800; color: #ff8800;">📧 Test Email</button>
+              <button onclick="loadEmailConfig()" class="btn-scan" style="padding: 8px 20px; font-size: 0.7rem; background: #1a1a2e; border-color: #00ff88; color: #00ff88;">🔄 Load</button>
+            </div>
+            <div id="emailStatus" class="email-status">Ready</div>
+          </div>
+        </section>
+
+        <!-- ── AUTOMATION PANEL ── -->
+        <section class="panel" id="automationPanel" style="margin-top: 20px;">
+          <div class="panel-header">
+            <span class="panel-title">🤖 AUTOMATION STATUS</span>
+            <span class="panel-tag">// live</span>
+          </div>
+          <div class="panel-body" id="automationBody">
+            <div class="data-row">
+              <span class="data-key">Status</span>
+              <span class="data-val ok" id="autoStatus">Loading...</span>
+            </div>
+            <div class="data-row">
+              <span class="data-key">Total Jobs</span>
+              <span class="data-val" id="totalJobs">-</span>
+            </div>
+            <div id="jobList">
+              <p class="no-data">Loading jobs...</p>
+            </div>
+            <div style="margin-top: 15px;">
+              <button onclick="triggerAutoScan()" class="btn-scan" style="padding: 8px 20px; font-size: 0.7rem;">
+                ⚡ Trigger Scan Now
+              </button>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   </main>
@@ -246,15 +293,14 @@
     <span class="footer-right">FastAPI · Playwright · BeautifulSoup4</span>
   </footer>
 
-  <!-- ── Floating AI Chat Button (No Emoji) ── -->
-  <a href="/chat" target="_blank" class="ai-chat-float" id="aiChatButton">
+  <!-- ── AI Chat Bottom Middle ── -->
+  <a href="/chat" target="_blank" class="ai-chat-bottom" id="aiChatButton">
     <span class="pulse"></span>
-    <span class="ai-text">AI CHAT</span>
+    <span>AI CHAT</span>
   </a>
 
   <script src="/static/js/dashboard.js"></script>
   <script>
-    // ── Port option custom field handler ──
     document.addEventListener("DOMContentLoaded", function() {
       const customRadio = document.getElementById("customPortRadio");
       const customInput = document.getElementById("customPorts");
@@ -264,33 +310,9 @@
         });
         customInput.disabled = !customRadio.checked;
       }
+      loadEmailConfig();
+      loadAutomationStatus();
     });
   </script>
 </body>
 </html>
-
-      <!-- Automation Panel -->
-      <section class="panel" id="automationPanel" style="margin-top: 20px;">
-        <div class="panel-header">
-          <span class="panel-title">🤖 AUTOMATION STATUS</span>
-          <span class="panel-tag">// live</span>
-        </div>
-        <div class="panel-body" id="automationBody">
-          <div class="data-row">
-            <span class="data-key">Status</span>
-            <span class="data-val ok" id="autoStatus">Loading...</span>
-          </div>
-          <div class="data-row">
-            <span class="data-key">Total Jobs</span>
-            <span class="data-val" id="totalJobs">-</span>
-          </div>
-          <div id="jobList">
-            <p class="no-data">Loading jobs...</p>
-          </div>
-          <div style="margin-top: 15px;">
-            <button onclick="triggerAutoScan()" class="btn-scan" style="padding: 8px 20px; font-size: 0.7rem;">
-              ⚡ Trigger Scan Now
-            </button>
-          </div>
-        </div>
-      </section>
