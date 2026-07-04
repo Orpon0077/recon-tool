@@ -1,27 +1,46 @@
 import socket
-from app.models import PortInfo, PortScanResult
+from typing import Dict, List
+from urllib.parse import urlparse
 
-COMMON_PORTS = {80: "HTTP", 443: "HTTPS"}
-
-def scan_ports(url: str, port_option: str = "top1000", custom_ports: str = None) -> PortScanResult:
+def scan_ports(url: str, port_option: str = "top1000", custom_ports: str = None) -> Dict:
+    """
+    Returns format expected by frontend renderPorts():
+    { "total_open": int, "open_ports": [{"port": int, "service": str, "state": str, "version": str}], "os_info": {} }
+    """
     try:
-        host = url.replace("https://", "").replace("http://", "").split("/")[0]
+        parsed = urlparse(url)
+        host = parsed.hostname
+        if not host:
+            return {"error": "Invalid URL"}
+
         try:
             ip = socket.gethostbyname(host)
         except:
             ip = host
-        
+
+        common_ports = {80: "HTTP", 443: "HTTPS"}
         open_ports = []
-        for port, service in COMMON_PORTS.items():
+
+        for port, service in common_ports.items():
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(3)
                 if sock.connect_ex((ip, port)) == 0:
-                    open_ports.append(PortInfo(port=port, service=service, version="open", state="open"))
+                    open_ports.append({
+                        "port": port,
+                        "service": service,
+                        "state": "open",
+                        "version": "open",
+                    })
                 sock.close()
             except:
                 continue
-        
-        return PortScanResult(url=url, host=host, open_ports=open_ports, total_open=len(open_ports))
+
+        return {
+            "total_open": len(open_ports),
+            "open_ports": open_ports,
+            "os_info": {},  # no OS detection in simple scanner
+        }
+
     except Exception as e:
-        return PortScanResult(url=url, host="", error=str(e))
+        return {"error": str(e)}

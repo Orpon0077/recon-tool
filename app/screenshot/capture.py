@@ -1,86 +1,54 @@
-import hashlib
-from pathlib import Path
-from playwright.async_api import async_playwright, TimeoutError as PWTimeoutError
-from app.config import SCREENSHOTS_DIR, SCREENSHOT_VIEWPORT
-from app.models import ScreenshotResult
+import os
+from typing import Dict
+from datetime import datetime
+from urllib.parse import urlparse
 
-def _screenshot_filename(url: str) -> str:
-    return hashlib.md5(url.encode()).hexdigest() + ".png"
+def normalize_url(url: str) -> str:
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    if url.startswith('https://https://'):
+        url = url.replace('https://https://', 'https://')
+    elif url.startswith('http://http://'):
+        url = url.replace('http://http://', 'http://')
+    return url
 
-async def capture_screenshot(url: str) -> ScreenshotResult:
-    filename = _screenshot_filename(url)
-    output_path = SCREENSHOTS_DIR / filename
-    relative_path = f"screenshots/{filename}"
-
+async def capture_screenshot(url: str) -> Dict:
+    """
+    ক্যাপচার করে শুধু ভিউপোর্ট (দৃশ্যমান অংশ) – মনিটরের স্ক্রিন সাইজ অনুযায়ী।
+    """
     try:
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--disable-setuid-sandbox',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process'
-                ]
-            )
-            
-            page = await browser.new_page(
-                viewport=SCREENSHOT_VIEWPORT,
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            
-            # ── Try different strategies ──
-            strategies = [
-                {"wait_until": "domcontentloaded", "timeout": 30000},
-                {"wait_until": "commit", "timeout": 20000},
-                {"wait_until": "load", "timeout": 15000},
-                {"wait_until": "networkidle", "timeout": 10000},
-            ]
-            
-            loaded = False
-            for strategy in strategies:
-                try:
-                    await page.goto(url, wait_until=strategy["wait_until"], timeout=strategy["timeout"])
-                    print(f"[Screenshot] ✅ Loaded: {strategy['wait_until']} ({strategy['timeout']}ms)")
-                    loaded = True
-                    break
-                except PWTimeoutError:
-                    print(f"[Screenshot] ⚠️ Timeout: {strategy['wait_until']}")
-                    continue
-            
-            # ── If all strategies failed, try direct navigation ──
-            if not loaded:
-                try:
-                    await page.goto(url, timeout=5000)
-                    print(f"[Screenshot] ✅ Loaded: direct")
-                    loaded = True
-                except:
-                    print(f"[Screenshot] ⚠️ Direct navigation failed")
-            
-            # ── Wait for rendering ──
-            await page.wait_for_timeout(2000)
-            
-            # ── Take screenshot ──
-            try:
-                await page.screenshot(path=str(output_path), full_page=False, timeout=15000)
-                print(f"[Screenshot] ✅ Captured: {filename}")
-            except Exception as e:
-                print(f"[Screenshot] ⚠️ Screenshot error: {e}")
-                # Try fallback: viewport only
-                await page.screenshot(
-                    path=str(output_path),
-                    full_page=False,
-                    clip={"x": 0, "y": 0, "width": 1280, "height": 800}
-                )
-                print(f"[Screenshot] ✅ Captured (viewport): {filename}")
-            
-            await browser.close()
-            
-        return ScreenshotResult(url=url, screenshot_path=relative_path)
-        
+        url = normalize_url(url)
+        screenshot_dir = os.path.join('static', 'screenshots')
+        os.makedirs(screenshot_dir, exist_ok=True)
+
+        parsed = urlparse(url)
+        domain = parsed.hostname or 'unknown'
+        filename = f"{domain}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        filepath = os.path.join(screenshot_dir, filename)
+
+        try:
+            from playwright.async_api import async_playwright
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                # ভিউপোর্ট সাইজ সেট করুন (যেমন 1280x800)
+                page = await browser.new_page(viewport={"width": 1280, "height": 800})
+                await page.goto(url, timeout=30000)
+                
+                # full_page=False দিয়ে শুধু ভিউপোর্ট ক্যাপচার
+                await page.screenshot(path=filepath, full_page=False)
+                await browser.close()
+
+                return {
+                    "screenshot_path": f"screenshots/{filename}",
+                    "url": url,
+                }
+
+        except ImportError:
+            return {
+                "error": "Playwright not installed. Run: playwright install",
+                "screenshot_path": None,
+            }
+
     except Exception as e:
-        print(f"[Screenshot] ❌ Error: {e}")
-        return ScreenshotResult(url=url, error=f"Screenshot failed: {str(e)[:100]}")
+        print(f"[SCREENSHOT] Error: {e}")
+        return {"error": str(e), "screenshot_path": None}

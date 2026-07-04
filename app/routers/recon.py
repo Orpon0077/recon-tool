@@ -37,15 +37,15 @@ async def api_full_scan(payload: ScanRequest) -> dict:
                 return {"error": f"Timeout after {timeout}s"}
         
         # ── Modules with increased timeouts ──
-        ssl_task = run_sync_with_timeout(analyze_ssl, url, timeout=15)          # 8→15s
-        security_task = run_sync_with_timeout(analyze_security_headers, url, timeout=15)  # 8→15s
-        firewall_task = run_sync_with_timeout(detect_firewall, url, timeout=25)  # 8→25s
-        tech_task = run_sync_with_timeout(detect_technologies, url, timeout=20)  # 12→20s
-        crawl_task = run_sync_with_timeout(crawl_website, url, timeout=45)       # 30→45s
-        subdomain_task = run_sync_with_timeout(discover_subdomains, url, timeout=60)  # 50→60s
-        js_task = run_sync_with_timeout(scan_javascript, url, timeout=25)        # 18→25s
-        ports_task = run_sync_with_timeout(scan_ports, url, payload.port_option, payload.custom_ports, timeout=35)  # 30→35s
-        screenshot_task = asyncio.create_task(run_async_with_timeout(capture_screenshot, url, timeout=60))  # 45→60s
+        ssl_task = run_sync_with_timeout(analyze_ssl, url, timeout=15)
+        security_task = run_sync_with_timeout(analyze_security_headers, url, timeout=15)
+        firewall_task = run_sync_with_timeout(detect_firewall, url, timeout=25)
+        tech_task = run_sync_with_timeout(detect_technologies, url, timeout=20)
+        crawl_task = run_sync_with_timeout(crawl_website, url, timeout=45)
+        subdomain_task = run_sync_with_timeout(discover_subdomains, url, timeout=60)
+        js_task = run_sync_with_timeout(scan_javascript, url, timeout=25)
+        ports_task = run_sync_with_timeout(scan_ports, url, payload.port_option, payload.custom_ports, timeout=35)
+        screenshot_task = asyncio.create_task(run_async_with_timeout(capture_screenshot, url, timeout=60))
         
         ssl_result, security_result, firewall_result, tech_result, crawl_result, subdomain_result, js_result, ports_result = await asyncio.gather(
             ssl_task, security_task, firewall_task, tech_task, crawl_task, subdomain_task, js_task, ports_task,
@@ -54,12 +54,13 @@ async def api_full_scan(payload: ScanRequest) -> dict:
         
         screenshot_result = await screenshot_task
         
-        # ── Handle exceptions ──
         def handle_result(result):
             if isinstance(result, Exception):
                 return {"error": str(result)}
             if hasattr(result, 'dict'):
                 return result.dict()
+            if isinstance(result, dict):
+                return result
             return result
         
         result = {
@@ -95,53 +96,68 @@ async def get_history_item(scan_id: str):
     return await get_scan_by_id(scan_id)
 
 
+# ── Individual endpoints (all return dict for simplicity) ──
+
 @router.post("/ssl")
-async def api_ssl(payload: ScanRequest) -> SSLResult:
+async def api_ssl(payload: ScanRequest) -> dict:
     return await asyncio.to_thread(analyze_ssl, payload.url)
 
 
 @router.post("/security-headers")
-async def api_security(payload: ScanRequest) -> SecurityHeadersResult:
+async def api_security(payload: ScanRequest) -> dict:
     return await asyncio.to_thread(analyze_security_headers, payload.url)
 
 
 @router.post("/ports")
-async def api_ports(payload: ScanRequest) -> PortScanResult:
-    return await asyncio.to_thread(scan_ports, payload.url, payload.port_option, payload.custom_ports)
+async def api_ports(payload: ScanRequest) -> dict:
+    result = await asyncio.to_thread(scan_ports, payload.url, payload.port_option, payload.custom_ports)
+    if hasattr(result, 'dict'):
+        return result.dict()
+    return result
 
 
 @router.post("/screenshot")
-async def api_screenshot(payload: ScanRequest) -> ScreenshotResult:
-    return await capture_screenshot(payload.url)
+async def api_screenshot(payload: ScanRequest) -> dict:
+    result = await capture_screenshot(payload.url)
+    if hasattr(result, 'dict'):
+        return result.dict()
+    return result
 
 
 @router.post("/firewall")
-async def api_firewall(payload: ScanRequest) -> FirewallResult:
+async def api_firewall(payload: ScanRequest) -> dict:
     return await asyncio.to_thread(detect_firewall, payload.url)
 
 
 @router.post("/tech")
-async def api_tech(payload: ScanRequest) -> TechDetectionResult:
-    return await asyncio.to_thread(detect_technologies, payload.url)
+async def api_tech(payload: ScanRequest) -> dict:
+    result = await asyncio.to_thread(detect_technologies, payload.url)
+    if hasattr(result, 'dict'):
+        return result.dict()
+    return result
 
 
 @router.post("/crawl")
-async def api_crawl(payload: ScanRequest) -> CrawlResult:
-    return await asyncio.to_thread(crawl_website, payload.url)
+async def api_crawl(payload: ScanRequest) -> dict:
+    result = await asyncio.to_thread(crawl_website, payload.url)
+    if hasattr(result, 'dict'):
+        return result.dict()
+    return result
 
 
-@router.post("/js-scan", response_model=JSScanResult)
-async def api_js_scan(payload: ScanRequest) -> JSScanResult:
+@router.post("/js-scan")
+async def api_js_scan(payload: ScanRequest) -> dict:
     result = await asyncio.to_thread(scan_javascript, payload.url)
-    if result.get("error"):
-        return JSScanResult(error=result["error"])
-    return JSScanResult(**result)
+    # result is guaranteed to be a dict with at least an "error" key if failed
+    return result
 
 
-@router.post("/subdomains", response_model=SubdomainResult)
-async def api_subdomains(payload: ScanRequest) -> SubdomainResult:
+@router.post("/subdomains")
+async def api_subdomains(payload: ScanRequest) -> dict:
     result = await asyncio.to_thread(discover_subdomains, payload.url)
-    return SubdomainResult(**result)
+    if hasattr(result, 'dict'):
+        return result.dict()
+    return result
 
 
 @router.post("/export-pdf")

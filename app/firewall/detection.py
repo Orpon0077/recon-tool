@@ -1,31 +1,68 @@
 import requests
-from app.config import REQUEST_TIMEOUT, REQUEST_HEADERS
-from app.models import FirewallResult
+from typing import Dict
+from urllib.parse import urlparse
 
-WAF_HEADERS = {
-    "cf-ray": "Cloudflare",
-    "x-sucuri-id": "Sucuri",
-    "x-amzn-waf-action": "AWS WAF",
-    "x-akamai-request-id": "Akamai",
-    "x-iinfo": "Imperva",
-    "x-fastly-request-id": "Fastly",
-}
+def normalize_url(url: str) -> str:
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    if url.startswith('https://https://'):
+        url = url.replace('https://https://', 'https://')
+    elif url.startswith('http://http://'):
+        url = url.replace('http://http://', 'http://')
+    return url
 
-def detect_firewall(url: str) -> FirewallResult:
+def detect_firewall(url: str) -> Dict:
+    """
+    Returns format expected by frontend renderFirewall():
+    { "detected": bool, "firewall_name": str or None, "evidence": str }
+    """
     try:
-        response = requests.get(url, timeout=REQUEST_TIMEOUT, headers=REQUEST_HEADERS, allow_redirects=True)
-        resp_headers = {k.lower(): v for k, v in response.headers.items()}
-        
-        for header, waf_name in WAF_HEADERS.items():
-            if header in resp_headers:
-                return FirewallResult(url=url, detected=True, firewall_name=waf_name, evidence=f"Header: {header}")
-        
-        server = resp_headers.get("server", "").lower()
-        server_wafs = {"cloudflare": "Cloudflare", "sucuri": "Sucuri", "akamai": "Akamai", "imperva": "Imperva", "fastly": "Fastly", "gfe": "Google Cloud Armor", "aws": "AWS", "cloudfront": "AWS CloudFront"}
-        for pattern, name in server_wafs.items():
-            if pattern in server:
-                return FirewallResult(url=url, detected=True, firewall_name=name, evidence=f"Server: {server}")
-        
-        return FirewallResult(url=url, detected=False, firewall_name=None, evidence="No WAF detected")
+        url = normalize_url(url)
+        response = requests.get(url, timeout=10, allow_redirects=True)
+        headers = {k.lower(): v for k, v in response.headers.items()}
+        text = response.text.lower()
+
+        waf_signatures = {
+            'Cloudflare': ['cf-ray', 'cf-cache-status', 'cloudflare'],
+            'AWS WAF': ['aws-waf', 'x-amzn-requestid'],
+            'Sucuri': ['x-sucuri-id', 'x-sucuri-cache'],
+            'ModSecurity': ['mod_security', 'x-modsecurity'],
+            'Akamai': ['x-akamai', 'x-akamaitech'],
+            'Fastly': ['x-fastly', 'fastly'],
+            'CloudFront': ['x-amz-cf-id', 'cloudfront'],
+            'Incapsula': ['x-iinfo', 'incapsula'],
+            'Barracuda': ['x-barracuda', 'barracuda'],
+            'Wordfence': ['wordfence', 'wf_'],
+            'Shield': ['x-shield'],
+        }
+
+        headers_str = str(headers).lower()
+        detected = []
+        evidence = ""
+
+        for waf_name, signatures in waf_signatures.items():
+            for sig in signatures:
+                if sig in headers_str or sig in text:
+                    detected.append(waf_name)
+                    evidence = f"Found signature '{sig}'"
+                    break
+            if detected:
+                break
+
+        if detected:
+            return {
+                "detected": True,
+                "firewall_name": detected[0],
+                "evidence": evidence or "WAF signature detected",
+            }
+        else:
+            return {
+                "detected": False,
+                "firewall_name": None,
+                "evidence": "No WAF indicators found",
+            }
+
+    except requests.exceptions.Timeout:
+        return {"error": "Connection timeout"}
     except Exception as e:
-        return FirewallResult(url=url, error=str(e))
+        return {"error": str(e)}

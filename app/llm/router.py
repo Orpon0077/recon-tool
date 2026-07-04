@@ -8,8 +8,8 @@ from app.llm.system_prompt import SYSTEM_PROMPT
 from app.llm.memory import conversation_memory
 from app.llm.provider import llm_provider
 from app.llm.reasoning import format_with_reasoning, get_reasoning
-from app.llm.tools import TOOLS
 from app.database.db import get_all_scans
+from app.database.chat_history import get_all_conversations, delete_conversation
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 
@@ -23,7 +23,36 @@ class ChatResponse(BaseModel):
     tool_calls: List[Dict] = []
     scan_id: Optional[str] = None
 
-# ── Improved Intent Detection ──
+# ── Quick responses ──
+def get_quick_response(prompt: str) -> str:
+    prompt_lower = prompt.lower()
+    
+    if prompt_lower in ["hello", "hi", "hey", "how are you"]:
+        return "Hello! I am Recon Assistant. I can help you scan websites for security and infrastructure. Try 'Help' for more information."
+    
+    if "help" in prompt_lower:
+        return """I can help you with:
+
+1. Scan a website: "Full scan axiler.com"
+2. Specific scans:
+   - "Firewall of axiler.com"
+   - "SSL of axiler.com"
+   - "Subdomains of axiler.com"
+   - "Crawl axiler.com"
+   - "Tech of axiler.com"
+   - "Ports of axiler.com"
+   - "Security headers of axiler.com"
+   - "JS of axiler.com"
+   - "Screenshot of axiler.com"
+3. History: "Show scan history"
+4. PDF: "Export PDF for axiler.com"
+5. Chat history: "Show chat history"
+
+Try one of these commands."""
+    
+    return None
+
+# ── Detect intent ──
 def detect_intent(prompt: str):
     prompt_lower = prompt.lower()
     url_match = re.search(r'(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', prompt)
@@ -33,51 +62,29 @@ def detect_intent(prompt: str):
     
     url = url_match.group(0)
     
-    # ── Check for EXACT match keywords (more specific first) ──
-    # Firewall specific
     if "firewall" in prompt_lower or "waf" in prompt_lower:
         return "firewall", url
-    
-    # SSL specific
     if "ssl" in prompt_lower or "certificate" in prompt_lower:
         return "ssl", url
-    
-    # Security headers specific
     if "security header" in prompt_lower or "header" in prompt_lower:
         return "security", url
-    
-    # Port specific
     if "port" in prompt_lower:
         return "ports", url
-    
-    # Subdomain specific
     if "subdomain" in prompt_lower:
         return "subdomains", url
-    
-    # Tech specific
     if "tech" in prompt_lower or "technology" in prompt_lower:
         return "tech", url
-    
-    # Crawl specific
     if "crawl" in prompt_lower or "endpoint" in prompt_lower:
         return "crawl", url
-    
-    # JS specific
     if "js" in prompt_lower or "javascript" in prompt_lower:
         return "js", url
-    
-    # Screenshot specific
     if "screenshot" in prompt_lower or "visual" in prompt_lower:
         return "screenshot", url
-    
-    # ── If user says "full scan" or "complete scan" or "all" ──
     if "full" in prompt_lower or "complete" in prompt_lower or "all" in prompt_lower:
         return "full", url
     
-    # ── Default: Ask user what they want (safe) ──
     return "ask", url
 
-# ── Execute specific scan only ──
 async def execute_specific_scan(intent: str, url: str) -> dict:
     if not url.startswith(('http://', 'https://')):
         url = 'https://' + url
@@ -166,7 +173,6 @@ async def execute_specific_scan(intent: str, url: str) -> dict:
         print(f"[LLM] ❌ Scan error: {e}")
         return {"success": False, "error": str(e)}
 
-# ── Main Chat Endpoint ──
 @router.post("/chat")
 async def chat(request: ChatRequest):
     session_id = request.session_id or str(uuid.uuid4())
@@ -174,30 +180,42 @@ async def chat(request: ChatRequest):
     
     print(f"[LLM] 📩 Prompt: {prompt}")
     
+    # ── Quick response ──
+    quick_response = get_quick_response(prompt)
+    if quick_response:
+        await conversation_memory.add_message(session_id, "user", prompt)
+        await conversation_memory.add_message(session_id, "assistant", quick_response)
+        return ChatResponse(
+            response=quick_response,
+            session_id=session_id,
+            tool_calls=[],
+            scan_id=None
+        )
+    
+    # ── Chat history request ──
+    if "chat history" in prompt.lower() or "conversation history" in prompt.lower():
+        conversations = await get_all_conversations(limit=20)
+        if conversations:
+            response = "CHAT HISTORY:\n"
+            for i, conv in enumerate(conversations, 1):
+                response += f"{i}. Session: {conv.get('session_id', 'N/A')[:8]}... - {conv.get('message_count', 0)} messages - {conv.get('created_at', 'Unknown')}\n"
+        else:
+            response = "No chat history found."
+        
+        await conversation_memory.add_message(session_id, "user", prompt)
+        await conversation_memory.add_message(session_id, "assistant", response)
+        return ChatResponse(response=response, session_id=session_id, tool_calls=[], scan_id=None)
+    
     # ── Detect intent ──
     intent, url = detect_intent(prompt)
     
-    # ── If "ask" -> ask user what they want ──
     if intent == "ask" and url:
-        response = f"I found a URL ({url}). What would you like me to scan?\n\n"
-        response += "Options:\n"
-        response += "1. Full scan (all modules)\n"
-        response += "2. Firewall / WAF detection\n"
-        response += "3. SSL certificate\n"
-        response += "4. Security headers\n"
-        response += "5. Port scan\n"
-        response += "6. Subdomains\n"
-        response += "7. Technologies\n"
-        response += "8. Crawl endpoints\n"
-        response += "9. JavaScript files\n"
-        response += "10. Screenshot\n\n"
-        response += "Example: 'scan firewall of axiler.com'"
+        response = f"I found URL: {url}. What would you like to scan?\n\nOptions: full, firewall, ssl, security headers, ports, subdomains, tech, crawl, js, screenshot\nExample: 'firewall of axiler.com'"
         
-        conversation_memory.add_message(session_id, "user", prompt)
-        conversation_memory.add_message(session_id, "assistant", response)
+        await conversation_memory.add_message(session_id, "user", prompt)
+        await conversation_memory.add_message(session_id, "assistant", response)
         return ChatResponse(response=response, session_id=session_id, tool_calls=[], scan_id=None)
     
-    # ── If scan intent detected ──
     if intent and url:
         print(f"[LLM] 🎯 Intent: {intent}, URL: {url}")
         
@@ -207,8 +225,8 @@ async def chat(request: ChatRequest):
             reasoning = get_reasoning(intent, url)
             formatted = format_with_reasoning(intent, result.get("result", {}), reasoning)
             
-            conversation_memory.add_message(session_id, "user", prompt)
-            conversation_memory.add_message(session_id, "assistant", formatted)
+            await conversation_memory.add_message(session_id, "user", prompt)
+            await conversation_memory.add_message(session_id, "assistant", formatted)
             
             return ChatResponse(
                 response=formatted,
@@ -218,8 +236,8 @@ async def chat(request: ChatRequest):
             )
         else:
             error_msg = f"❌ Scan failed: {result.get('error', 'Unknown error')}"
-            conversation_memory.add_message(session_id, "user", prompt)
-            conversation_memory.add_message(session_id, "assistant", error_msg)
+            await conversation_memory.add_message(session_id, "user", prompt)
+            await conversation_memory.add_message(session_id, "assistant", error_msg)
             return ChatResponse(
                 response=error_msg,
                 session_id=session_id,
@@ -227,7 +245,7 @@ async def chat(request: ChatRequest):
                 scan_id=None
             )
     
-    # ── History request ──
+    # ── Scan history ──
     if "history" in prompt.lower():
         scans = await get_all_scans()
         if scans:
@@ -237,12 +255,12 @@ async def chat(request: ChatRequest):
         else:
             response = "No scans found."
         
-        conversation_memory.add_message(session_id, "user", prompt)
-        conversation_memory.add_message(session_id, "assistant", response)
+        await conversation_memory.add_message(session_id, "user", prompt)
+        await conversation_memory.add_message(session_id, "assistant", response)
         return ChatResponse(response=response, session_id=session_id, tool_calls=[], scan_id=None)
     
     # ── Default: LLM response ──
-    history = conversation_memory.get_context(session_id, max_messages=10)
+    history = await conversation_memory.get_context(session_id, max_messages=5)
     
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT}
@@ -253,10 +271,13 @@ async def chat(request: ChatRequest):
     
     messages.append({"role": "user", "content": prompt})
     
-    response_text = await llm_provider.chat(messages)
+    try:
+        response_text = await asyncio.wait_for(llm_provider.chat(messages), timeout=30)
+    except asyncio.TimeoutError:
+        response_text = "The LLM server is taking too long. Please try again or use specific commands like 'Firewall of axiler.com'."
     
-    conversation_memory.add_message(session_id, "user", prompt)
-    conversation_memory.add_message(session_id, "assistant", response_text)
+    await conversation_memory.add_message(session_id, "user", prompt)
+    await conversation_memory.add_message(session_id, "assistant", response_text)
     
     return ChatResponse(
         response=response_text,
@@ -264,3 +285,12 @@ async def chat(request: ChatRequest):
         tool_calls=[],
         scan_id=None
     )
+
+# ── Delete chat history ──
+@router.delete("/history/{session_id}")
+async def delete_chat_history(session_id: str):
+    result = await delete_conversation(session_id)
+    if result:
+        conversation_memory.clear_session(session_id)
+        return {"status": "deleted", "session_id": session_id}
+    return {"status": "not_found", "session_id": session_id}

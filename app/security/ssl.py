@@ -1,35 +1,50 @@
 import ssl
 import socket
-from datetime import datetime
-from app.models import SSLResult
+import datetime
+from typing import Dict, Optional
+from urllib.parse import urlparse
 
-def analyze_ssl(url: str) -> SSLResult:
+def analyze_ssl(url: str) -> Dict:
+    """
+    SSL certificate analysis – returns format expected by frontend renderSSL()
+    """
     try:
-        hostname = url.replace("https://", "").replace("http://", "").split("/")[0]
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return {"error": "Invalid URL"}
+
         context = ssl.create_default_context()
-        conn = context.wrap_socket(socket.socket(socket.AF_INET), server_hostname=hostname)
-        conn.settimeout(10)
-        conn.connect((hostname, 443))
-        cert = conn.getpeercert()
-        conn.close()
+        with socket.create_connection((hostname, 443), timeout=10) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                cert = ssock.getpeercert()
 
-        issued_to = dict(cert["subject"][0]).get("commonName", "Unknown")
-        issued_by = dict(cert["issuer"][0]).get("organizationName", "Unknown")
-        valid_from = cert["notBefore"]
-        valid_until = cert["notAfter"]
+                subject = dict(x[0] for x in cert.get('subject', []))
+                issuer = dict(x[0] for x in cert.get('issuer', []))
 
-        expiry_date = datetime.strptime(valid_until, "%b %d %H:%M:%S %Y %Z")
-        days_remaining = (expiry_date - datetime.utcnow()).days
-        is_expired = days_remaining < 0
+                not_before = cert.get('notBefore')
+                not_after = cert.get('notAfter')
 
-        return SSLResult(
-            url=url,
-            issued_to=issued_to,
-            issued_by=issued_by,
-            valid_from=valid_from,
-            valid_until=valid_until,
-            days_remaining=days_remaining,
-            is_expired=is_expired,
-        )
+                if not_after:
+                    expiry_date = datetime.datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
+                    days_remaining = (expiry_date - datetime.datetime.now()).days
+                else:
+                    days_remaining = None
+
+                is_expired = days_remaining < 0 if days_remaining is not None else False
+
+                return {
+                    "issued_to": subject.get('commonName', 'N/A'),
+                    "issued_by": issuer.get('organizationName', issuer.get('commonName', 'N/A')),
+                    "valid_from": not_before or 'N/A',
+                    "valid_until": not_after or 'N/A',
+                    "days_remaining": days_remaining if days_remaining is not None else 0,
+                    "is_expired": is_expired,
+                }
+
+    except ssl.SSLError as e:
+        return {"error": f"SSL Error: {str(e)}"}
+    except socket.timeout:
+        return {"error": "Connection timed out"}
     except Exception as e:
-        return SSLResult(url=url, error=str(e))
+        return {"error": str(e)}

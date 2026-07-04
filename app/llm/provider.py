@@ -1,12 +1,9 @@
-# ── LLM Provider (Optimized) ──
+# ── LLM Provider ──
 import aiohttp
 import os
 import json
 import asyncio
 from typing import List, Dict
-
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 class LLMProvider:
     def __init__(self):
@@ -16,53 +13,53 @@ class LLMProvider:
         print(f"[LLM] Model: {self.model}")
     
     async def chat(self, messages: List[Dict]) -> str:
-        # ── Extract user message ──
+        """
+        messages: [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
+        Returns: Response string from LLM
+        """
+        # ── Extract system prompt and user message ──
+        system_prompt = ""
         user_message = ""
+        
         for msg in messages:
-            if msg["role"] == "user":
+            if msg["role"] == "system":
+                system_prompt = msg["content"]
+            elif msg["role"] == "user":
                 user_message = msg["content"]
         
         if not user_message:
             return "Please provide a message."
         
-        # ── Check if it's a simple greeting ──
-        if user_message.lower() in ["hello", "hi", "hey", "how are you"]:
-            return "Hello! I am Recon Assistant. I can help you scan websites for security, technology, and infrastructure. Try 'Help' for more information."
+        # ── Combine system prompt with user message ──
+        if system_prompt:
+            combined_prompt = f"{system_prompt}\n\n---\n\nUser Query: {user_message}\n\n---\n\nPlease respond as Recon Assistant based on your role and the instructions above."
+        else:
+            combined_prompt = user_message
         
-        # ── Try LLM with short timeout ──
+        # ── Try LLM ──
         try:
-            result = await self._call_llm(messages)
-            if result and not result.startswith("❌"):
+            result = await self._call_llm(combined_prompt)
+            if result:
                 return result
         except Exception as e:
             print(f"[LLM] LLM call failed: {e}")
         
-        # ── Fallback: Quick response ──
-        return "I am Recon Assistant. Please tell me what you want to scan. Example: 'Full scan axiler.com' or 'Firewall of axiler.com' or type 'Help' for more options."
+        # ── NO FALLBACK! Just return what we got or empty ──
+        return "I couldn't process that request. Please try again."
     
-    async def _call_llm(self, messages: List[Dict]) -> str:
-        """Call LLM API"""
-        user_message = ""
-        system_prompt = ""
-        
-        for msg in messages:
-            if msg["role"] == "user":
-                user_message = msg["content"]
-            elif msg["role"] == "system":
-                system_prompt = msg["content"]
-        
-        if not user_message:
+    async def _call_llm(self, prompt: str) -> str:
+        """Call LLM API with combined prompt"""
+        if not prompt:
             return ""
         
         payload = {
             "model": self.model,
-            "system_prompt": system_prompt or "You are a helpful assistant. Be very brief and concise.",
-            "input": user_message
+            "input": prompt
         }
         
-        print(f"[LLM] Sending: {user_message[:30]}...")
+        print(f"[LLM] Sending: {prompt[:80]}...")
         
-        timeout = aiohttp.ClientTimeout(total=30, connect=5)
+        timeout = aiohttp.ClientTimeout(total=60, connect=10)
         
         async with aiohttp.ClientSession(timeout=timeout) as session:
             try:
@@ -79,8 +76,9 @@ class LLMProvider:
                     try:
                         data = json.loads(text)
                     except:
-                        return text[:200]
+                        return text[:500]
                     
+                    # ── Parse response ──
                     if "output" in data and isinstance(data["output"], list):
                         for item in data["output"]:
                             if isinstance(item, dict) and item.get("type") == "message":
@@ -101,8 +99,9 @@ class LLMProvider:
                         return data["content"]
                     
                     return json.dumps(data, indent=2)
+                    
             except asyncio.TimeoutError:
-                print("[LLM] ⏰ Timeout")
+                print("[LLM] ⏰ Timeout after 60s")
                 return ""
             except Exception as e:
                 print(f"[LLM] Error: {e}")

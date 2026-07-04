@@ -1,0 +1,139 @@
+# ── LLM Router (Direct Response - No Timeout) ─────────────
+from fastapi import APIRouter
+from pydantic import BaseModel
+from typing import List, Dict, Optional
+import re
+import uuid
+from app.database import get_all_scans, get_scan_by_id, save_scan
+from app.modules import (
+    analyze_ssl, analyze_security_headers, scan_ports,
+    capture_screenshot, detect_firewall, detect_technologies,
+    crawl_website, scan_javascript, discover_subdomains
+)
+from app.llm_memory import conversation_memory
+
+router = APIRouter(prefix="/api/llm", tags=["llm"])
+
+class ChatRequest(BaseModel):
+    prompt: str
+    session_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    response: str
+    session_id: str
+    tool_calls: List[Dict] = []
+    scan_id: Optional[str] = None
+
+@router.post("/chat")
+async def chat(request: ChatRequest):
+    session_id = request.session_id or str(uuid.uuid4())
+    prompt = request.prompt.lower()
+    scan_id = None
+    
+    # ── Simple keyword-based response ──
+    if "scan" in prompt or "recon" in prompt:
+        url_match = re.search(r'(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', request.prompt)
+        if url_match:
+            url = url_match.group(0)
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            
+            ssl = analyze_ssl(url)
+            security = analyze_security_headers(url)
+            ports = scan_ports(url)
+            screenshot = capture_screenshot(url)
+            firewall = detect_firewall(url)
+            tech = detect_technologies(url)
+            crawl = crawl_website(url)
+            js = scan_javascript(url)
+            subdomains = discover_subdomains(url)
+            
+            result = {
+                "url": url,
+                "ssl": ssl.dict() if hasattr(ssl, 'dict') else ssl,
+                "security_headers": security.dict() if hasattr(security, 'dict') else security,
+                "ports": ports.dict() if hasattr(ports, 'dict') else ports,
+                "screenshot": screenshot.dict() if hasattr(screenshot, 'dict') else screenshot,
+                "firewall": firewall.dict() if hasattr(firewall, 'dict') else firewall,
+                "tech": tech.dict() if hasattr(tech, 'dict') else tech,
+                "crawl": crawl.dict() if hasattr(crawl, 'dict') else crawl,
+                "js_scanner": js if isinstance(js, dict) else js.dict() if hasattr(js, 'dict') else js,
+                "subdomains": subdomains if isinstance(subdomains, dict) else subdomains.dict() if hasattr(subdomains, 'dict') else subdomains
+            }
+            
+            scan_id = save_scan(url, result)
+            
+            response = f"SCAN COMPLETE for {url}\n\nSUMMARY:\n"
+            response += f"- SSL: {result['ssl'].get('issued_to', 'N/A')}\n"
+            response += f"- Security Score: {result['security_headers'].get('score', 0)}/100\n"
+            response += f"- Open Ports: {result['ports'].get('total_open', 0)}\n"
+            response += f"- Subdomains: {result['subdomains'].get('total_found', 0)}\n"
+            response += f"- Technologies: {result['tech'].get('total_found', 0)}\n"
+            response += f"- Endpoints: {result['crawl'].get('total_found', 0)}\n"
+            response += f"- JS Files: {result['js_scanner'].get('total_js_files', 0)}\n"
+            
+            firewall_name = result['firewall'].get('firewall_name')
+            response += f"- Firewall: {firewall_name if firewall_name else 'Not Detected'}\n"
+            
+            response += f"\nScan ID: {scan_id}\n"
+            response += f"View Dashboard: http://localhost:8000/?scan_id={scan_id}\n"
+        else:
+            response = "Please provide a URL like 'scan axiler.com'"
+    
+    elif "history" in prompt:
+        scans = get_all_scans()
+        if scans:
+            response = "Recent Scans:\n"
+            for i, s in enumerate(scans[:10], 1):
+                response += f"{i}. {s.get('url')} - {s.get('timestamp')}\n"
+        else:
+            response = "No scans found."
+    
+    elif "pdf" in prompt or "export" in prompt:
+        url_match = re.search(r'(?:https?://)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,})', request.prompt)
+        if url_match:
+            url = url_match.group(0)
+            from app.modules.pdf_generator import generate_pdf_report
+            scans = get_all_scans()
+            for s in scans:
+                if s.get('url') == url:
+                    full_scan = get_scan_by_id(s['id'])
+                    if full_scan:
+                        filepath = generate_pdf_report(full_scan.get('results', {}), url)
+                        response = f"PDF Report generated.\nDownload: {filepath}"
+                        break
+            else:
+                response = f"No scan found for {url}."
+        else:
+            response = "Please provide a URL like 'export PDF for axiler.com'"
+    
+    else:
+        response = """I am your Recon Assistant. Here are my capabilities:
+
+1. WEBSITE SCANNING - Scan any website for security and technology
+2. SECURITY ANALYSIS - SSL, security headers, firewall detection
+3. TECHNOLOGY DETECTION - Frameworks, CMS, CDN
+4. SUBDOMAIN DISCOVERY - Find all subdomains
+5. CONTENT CRAWLING - Extract endpoints and links
+6. JAVASCRIPT ANALYSIS - Scan JS files for emails, APIs, paths
+7. PDF REPORTING - Generate professional PDF reports
+8. SCAN HISTORY - View previous scans
+9. AUTOMATION - Scheduled scans + email notifications
+10. DASHBOARD - Real-time results
+
+Try: "Scan axiler.com" or "Show scan history"""
+    
+    conversation_memory.add_message(session_id, "user", request.prompt)
+    conversation_memory.add_message(session_id, "assistant", response)
+    
+    return ChatResponse(
+        response=response,
+        session_id=session_id,
+        tool_calls=[],
+        scan_id=scan_id
+    )
+
+@router.post("/clear")
+async def clear_session(session_id: str):
+    conversation_memory.clear_session(session_id)
+    return {"status": "cleared", "session_id": session_id}
