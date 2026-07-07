@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recon Report — axiler.com</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .report-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .report-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.05em;
+        }
+        .report-header .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 16px;
+        }
+        .report-header .meta {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .report-header .meta-item {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        .report-body {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #0f3460;
+        }
+        .section h2 {
+            font-size: 1.2rem;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.88rem;
+        }
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            word-break: break-word;
+        }
+        tr:hover td {
+            background: #f8f9fa;
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        .error {
+            color: #ff4444;
+            font-style: italic;
+        }
+        ul { padding-left: 20px; margin: 8px 0; }
+        li { margin: 4px 0; }
+        .print-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #0f3460;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+        .print-btn:hover { background: #16213e; transform: translateY(-2px); }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .summary-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f3460;
+        }
+        .summary-card .label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        @media print {
+            .print-btn { display: none; }
+            body { background: white; }
+            .section { box-shadow: none; border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <h1>🔍 Web Reconnaissance Report</h1>
+        <div class="subtitle">Security Analysis Report</div>
+        <div class="meta">
+            <div class="meta-item">🎯 Target: <strong>axiler.com</strong></div>
+            <div class="meta-item">📅 Generated: <strong>2026-07-06 12:52:57</strong></div>
+            <div class="meta-item">🛠️ Tool: <strong>RECON Dashboard</strong></div>
+        </div>
+    </div>
+
+    <div class="report-body">
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="number">2</div>
+                <div class="label">Open Ports</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">4</div>
+                <div class="label">Subdomains</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">2</div>
+                <div class="label">Technologies</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">20</div>
+                <div class="label">Endpoints</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">0/100</div>
+                <div class="label">Security Score</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">YES</div>
+                <div class="label">WAF Detected</div>
+            </div>
+        </div>
+
+        
+        <div class="section">
+            <h2>🔒 SSL/TLS Analysis</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Issued To</td><td>*.axiler.com</td></tr>
+                <tr><td>Issued By</td><td>Amazon</td></tr>
+                <tr><td>Valid From</td><td>Jun 18 00:00:00 2026 GMT</td></tr>
+                <tr><td>Valid Until</td><td>Jan  1 23:59:59 2027 GMT</td></tr>
+                <tr><td>Days Remaining</td><td style="color:#00aa55; font-weight:bold;">179</td></tr>
+                <tr><td>Expired</td><td style="color:#00aa55; font-weight:bold;">NO ✓</td></tr>
+            </table>
+        </div>
+        
+        
+        <div class="section">
+            <h2>🛡️ Security Headers</h2>
+            <div class="score-badge" style="background:#ff4444;">Security Score: 0/100</div>
+            <table>
+                <tr><th>Header</th><th>Value / Status</th></tr>
+                
+                <tr><td style="color:#ff4444;">✗ strict-transport-security</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ content-security-policy</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ x-content-type-options</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ x-frame-options</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ referrer-policy</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ permissions-policy</td><td style="color:#ff4444;">MISSING</td></tr>
+            </table>
+        </div>
+        
+        
+            <div class="section">
+                <h2>🔍 Port Scanning</h2>
+                <p>Total open ports: <strong>2</strong></p>
+                <table>
+                    <tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr>
+                    <tr><td style="font-weight:bold;">80</td><td>HTTP</td><td style="color:#00aa55;">OPEN</td><td>open</td></tr><tr><td style="font-weight:bold;">443</td><td>HTTPS</td><td style="color:#00aa55;">OPEN</td><td>open</td></tr>
+                </table>
+            </div>
+            
+        
+        <div class="section">
+            <h2>🔥 Firewall / WAF Detection</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Detected</td><td style="color:#ff4444; font-weight:bold;">YES ⚠️</td></tr>
+                <tr><td>Firewall Name</td><td>Cloudflare</td></tr>
+                <tr><td>Evidence</td><td>Found signature 'cloudflare'</td></tr>
+            </table>
+        </div>
+        
+        
+            <div class="section">
+                <h2>⚙️ Technology Detection</h2>
+                <p>Total technologies found: <strong>2</strong></p>
+                <table>
+                    <tr><th>Category</th><th>Technologies</th></tr>
+                    <tr><td style="font-weight:bold;">JavaScript Frameworks</td><td>React, Next.js</td></tr>
+                </table>
+            </div>
+            
+        
+            <div class="section">
+                <h2>🕷️ Crawling / Endpoint Discovery</h2>
+                <p>Total endpoints found: <strong>20</strong></p>
+                <table>
+                    <tr><th>URL</th><th>Method</th><th>Status</th><th>Content Type</th></tr>
+                    <tr><td style="word-break:break-all;">https://axiler.com/</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/agentic-waf</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/agentic-sast</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/agentic-dast</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/api-mcp-security</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/agentic-cloud-security</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/solutions</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/schedule-a-demo</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/about-us</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/blog</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/partner</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/feature</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axilerblog.medium.com/the-hacker-just-got-a-0-17-upgrade-your-security-stack-got-nothing-ebc66aebe4e2</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axilerblog.medium.com/the-ban-of-fable-5-and-mythos-5-does-not-matter-the-tsunami-is-already-here-b444d2d74cb4</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axilerblog.medium.com/</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/privacy-policy</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/terms-condition</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://www.linkedin.com/company/axiler</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://www.facebook.com/profile.php</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr>
+                </table>
+            </div>
+            
+        
+            <div class="section">
+                <h2>🌐 Subdomain Discovery</h2>
+                <p>Total subdomains found: <strong>4</strong></p>
+                <table>
+                    <tr><th>Subdomain</th><th>IP Address</th></tr>
+                    <tr><td>autodiscover.axiler.com</td><td>40.99.10.40</td></tr><tr><td>blog.axiler.com</td><td>54.82.87.38</td></tr><tr><td>marketing.axiler.com</td><td>172.66.0.145</td></tr><tr><td>www.axiler.com</td><td>3.171.198.92</td></tr>
+                </table>
+            </div>
+            
+        <div class="section"><h2>📜 JavaScript Analysis</h2><p>Total JS files: <strong>10</strong></p><p><strong>Internal Paths:</strong></p><ul><li>/ROOT/node_modules/next/dist/compiled/process/</li><li>/blog/detail</li><li>/a/b</li><li>/a/i</li><li>/privacy-policy</li></ul><p><strong>Potential Issues (1):</strong></p><table><tr><th>File</th><th>Pattern</th></tr><tr><td>https://axiler.com/_next/static/chunks/1wpi-_59dw0su.js</td><td style="color:#ff4444;">innerHTML with dynamic data</td></tr></table></div>
+        
+            <div class="section">
+                <h2>📸 Screenshot</h2>
+                <img src="/screenshots/axiler.com_20260706_125028.png" alt="Screenshot of axiler.com" style="max-width:100%; border:1px solid #ddd; border-radius:4px;">
+            </div>
+            
+    </div>
+
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recon Report — axler.com</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .report-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .report-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.05em;
+        }
+        .report-header .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 16px;
+        }
+        .report-header .meta {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .report-header .meta-item {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        .report-body {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #0f3460;
+        }
+        .section h2 {
+            font-size: 1.2rem;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.88rem;
+        }
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            word-break: break-word;
+        }
+        tr:hover td {
+            background: #f8f9fa;
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        .error {
+            color: #ff4444;
+            font-style: italic;
+        }
+        ul { padding-left: 20px; margin: 8px 0; }
+        li { margin: 4px 0; }
+        .print-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #0f3460;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+        .print-btn:hover { background: #16213e; transform: translateY(-2px); }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .summary-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f3460;
+        }
+        .summary-card .label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        @media print {
+            .print-btn { display: none; }
+            body { background: white; }
+            .section { box-shadow: none; border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <h1>🔍 Web Reconnaissance Report</h1>
+        <div class="subtitle">Security Analysis Report</div>
+        <div class="meta">
+            <div class="meta-item">🎯 Target: <strong>axler.com</strong></div>
+            <div class="meta-item">📅 Generated: <strong>2026-07-06 13:41:31</strong></div>
+            <div class="meta-item">🛠️ Tool: <strong>RECON Dashboard</strong></div>
+        </div>
+    </div>
+
+    <div class="report-body">
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="number">2</div>
+                <div class="label">Open Ports</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">332</div>
+                <div class="label">Subdomains</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">0</div>
+                <div class="label">Technologies</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">0</div>
+                <div class="label">Endpoints</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">0/100</div>
+                <div class="label">Security Score</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">NO</div>
+                <div class="label">WAF Detected</div>
+            </div>
+        </div>
+
+        
+        <div class="section">
+            <h2>🔒 SSL/TLS Analysis</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Issued To</td><td>axler.com</td></tr>
+                <tr><td>Issued By</td><td>GoDaddy.com</td></tr>
+                <tr><td>Valid From</td><td>Jun 29 08:19:35 2026 GMT</td></tr>
+                <tr><td>Valid Until</td><td>Jan 13 08:19:35 2027 GMT</td></tr>
+                <tr><td>Days Remaining</td><td style="color:#00aa55; font-weight:bold;">190</td></tr>
+                <tr><td>Expired</td><td style="color:#00aa55; font-weight:bold;">NO ✓</td></tr>
+            </table>
+        </div>
+        
+        
+        <div class="section">
+            <h2>🛡️ Security Headers</h2>
+            <div class="score-badge" style="background:#ff4444;">Security Score: 0/100</div>
+            <table>
+                <tr><th>Header</th><th>Value / Status</th></tr>
+                
+                <tr><td style="color:#ff4444;">✗ strict-transport-security</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ content-security-policy</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ x-content-type-options</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ x-frame-options</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ referrer-policy</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ permissions-policy</td><td style="color:#ff4444;">MISSING</td></tr>
+            </table>
+        </div>
+        
+        
+            <div class="section">
+                <h2>🔍 Port Scanning</h2>
+                <p>Total open ports: <strong>2</strong></p>
+                <table>
+                    <tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr>
+                    <tr><td style="font-weight:bold;">80</td><td>HTTP</td><td style="color:#00aa55;">OPEN</td><td>open</td></tr><tr><td style="font-weight:bold;">443</td><td>HTTPS</td><td style="color:#00aa55;">OPEN</td><td>open</td></tr>
+                </table>
+            </div>
+            
+        
+        <div class="section">
+            <h2>🔥 Firewall / WAF Detection</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Detected</td><td style="color:#00aa55; font-weight:bold;">NO ✓</td></tr>
+                
+                <tr><td>Evidence</td><td>No WAF indicators found</td></tr>
+            </table>
+        </div>
+        
+        <div class="section"><h2>⚙️ Technology Detection</h2><p>No technologies detected.</p></div>
+        <div class="section"><h2>🕷️ Crawling / Endpoint Discovery</h2><p>No endpoints found.</p></div>
+        
+            <div class="section">
+                <h2>🌐 Subdomain Discovery</h2>
+                <p>Total subdomains found: <strong>332</strong></p>
+                <table>
+                    <tr><th>Subdomain</th><th>IP Address</th></tr>
+                    <tr><td>about.axler.com</td><td>13.248.169.48</td></tr><tr><td>account.axler.com</td><td>13.248.169.48</td></tr><tr><td>accounting.axler.com</td><td>13.248.169.48</td></tr><tr><td>ad.axler.com</td><td>13.248.169.48</td></tr><tr><td>admin.axler.com</td><td>13.248.169.48</td></tr><tr><td>ai.axler.com</td><td>13.248.169.48</td></tr><tr><td>alerts.axler.com</td><td>13.248.169.48</td></tr><tr><td>analytics.axler.com</td><td>13.248.169.48</td></tr><tr><td>android.axler.com</td><td>13.248.169.48</td></tr><tr><td>ap-south.axler.com</td><td>13.248.169.48</td></tr><tr><td>apache.axler.com</td><td>13.248.169.48</td></tr><tr><td>api.axler.com</td><td>13.248.169.48</td></tr><tr><td>api2.axler.com</td><td>13.248.169.48</td></tr><tr><td>api3.axler.com</td><td>13.248.169.48</td></tr><tr><td>app.axler.com</td><td>13.248.169.48</td></tr><tr><td>app2.axler.com</td><td>13.248.169.48</td></tr><tr><td>application.axler.com</td><td>13.248.169.48</td></tr><tr><td>apps.axler.com</td><td>13.248.169.48</td></tr><tr><td>archive.axler.com</td><td>13.248.169.48</td></tr><tr><td>asia.axler.com</td><td>76.223.54.146</td></tr><tr><td>assets.axler.com</td><td>76.223.54.146</td></tr><tr><td>au.axler.com</td><td>13.248.169.48</td></tr><tr><td>audio.axler.com</td><td>76.223.54.146</td></tr><tr><td>auth.axler.com</td><td>13.248.169.48</td></tr><tr><td>autoconfig.axler.com</td><td>13.248.169.48</td></tr><tr><td>autodiscover.axler.com</td><td>76.223.54.146</td></tr><tr><td>axler.com</td><td>13.248.169.48</td></tr><tr><td>backup.axler.com</td><td>13.248.169.48</td></tr><tr><td>backup2.axler.com</td><td>13.248.169.48</td></tr><tr><td>beta.axler.com</td><td>13.248.169.48</td></tr><tr><td>bi.axler.com</td><td>13.248.169.48</td></tr><tr><td>bigdata.axler.com</td><td>13.248.169.48</td></tr><tr><td>billing.axler.com</td><td>13.248.169.48</td></tr><tr><td>bitbucket.axler.com</td><td>13.248.169.48</td></tr><tr><td>blog.axler.com</td><td>13.248.169.48</td></tr><tr><td>blog2.axler.com</td><td>13.248.169.48</td></tr><tr><td>board.axler.com</td><td>13.248.169.48</td></tr><tr><td>bounce.axler.com</td><td>13.248.169.48</td></tr><tr><td>broadcast.axler.com</td><td>13.248.169.48</td></tr><tr><td>bugs.axler.com</td><td>13.248.169.48</td></tr><tr><td>build.axler.com</td><td>13.248.169.48</td></tr><tr><td>ca.axler.com</td><td>13.248.169.48</td></tr><tr><td>cache.axler.com</td><td>13.248.169.48</td></tr><tr><td>calendar.axler.com</td><td>76.223.54.146</td></tr><tr><td>careers.axler.com</td><td>13.248.169.48</td></tr><tr><td>cart.axler.com</td><td>13.248.169.48</td></tr><tr><td>catalog.axler.com</td><td>13.248.169.48</td></tr><tr><td>cd.axler.com</td><td>13.248.169.48</td></tr><tr><td>cdn.axler.com</td><td>13.248.169.48</td></tr><tr><td>chat.axler.com</td><td>13.248.169.48</td></tr><tr><td>checkout.axler.com</td><td>76.223.54.146</td></tr><tr><td>ci.axler.com</td><td>13.248.169.48</td></tr><tr><td>citrix.axler.com</td><td>13.248.169.48</td></tr><tr><td>clients.axler.com</td><td>13.248.169.48</td></tr><tr><td>cloud.axler.com</td><td>13.248.169.48</td></tr><tr><td>cluster.axler.com</td><td>13.248.169.48</td></tr><tr><td>code.axler.com</td><td>13.248.169.48</td></tr><tr><td>community.axler.com</td><td>13.248.169.48</td></tr><tr><td>community2.axler.com</td><td>13.248.169.48</td></tr><tr><td>confluence.axler.com</td><td>13.248.169.48</td></tr><tr><td>connector.axler.com</td><td>13.248.169.48</td></tr><tr><td>consul.axler.com</td><td>76.223.54.146</td></tr><tr><td>contact.axler.com</td><td>13.248.169.48</td></tr><tr><td>cp.axler.com</td><td>76.223.54.146</td></tr><tr><td>cpanel.axler.com</td><td>13.248.169.48</td></tr><tr><td>crm.axler.com</td><td>13.248.169.48</td></tr><tr><td>customers.axler.com</td><td>13.248.169.48</td></tr><tr><td>dashboard.axler.com</td><td>76.223.54.146</td></tr><tr><td>data.axler.com</td><td>13.248.169.48</td></tr><tr><td>db.axler.com</td><td>13.248.169.48</td></tr><tr><td>de.axler.com</td><td>13.248.169.48</td></tr><tr><td>delivery.axler.com</td><td>13.248.169.48</td></tr><tr><td>demo.axler.com</td><td>13.248.169.48</td></tr><tr><td>deploy.axler.com</td><td>76.223.54.146</td></tr><tr><td>design.axler.com</td><td>76.223.54.146</td></tr><tr><td>dev.axler.com</td><td>13.248.169.48</td></tr><tr><td>dev2.axler.com</td><td>13.248.169.48</td></tr><tr><td>developer.axler.com</td><td>76.223.54.146</td></tr><tr><td>developers.axler.com</td><td>13.248.169.48</td></tr><tr><td>directory.axler.com</td><td>76.223.54.146</td></tr><tr><td>discuss.axler.com</td><td>76.223.54.146</td></tr><tr><td>dns.axler.com</td><td>13.248.169.48</td></tr><tr><td>docker.axler.com</td><td>76.223.54.146</td></tr><tr><td>docs.axler.com</td><td>13.248.169.48</td></tr><tr><td>download.axler.com</td><td>13.248.169.48</td></tr><tr><td>dr.axler.com</td><td>13.248.169.48</td></tr><tr><td>ecommerce.axler.com</td><td>13.248.169.48</td></tr><tr><td>edge.axler.com</td><td>13.248.169.48</td></tr><tr><td>elasticsearch.axler.com</td><td>13.248.169.48</td></tr><tr><td>elk.axler.com</td><td>76.223.54.146</td></tr><tr><td>email.axler.com</td><td>13.248.169.48</td></tr><tr><td>erp.axler.com</td><td>13.248.169.48</td></tr><tr><td>etl.axler.com</td><td>13.248.169.48</td></tr><tr><td>eu-west.axler.com</td><td>13.248.169.48</td></tr><tr><td>eu.axler.com</td><td>13.248.169.48</td></tr><tr><td>extranet.axler.com</td><td>13.248.169.48</td></tr><tr><td>failover.axler.com</td><td>13.248.169.48</td></tr><tr><td>files.axler.com</td><td>13.248.169.48</td></tr><tr><td>finance.axler.com</td><td>13.248.169.48</td></tr><tr><td>firewall.axler.com</td><td>13.248.169.48</td></tr>
+                </table>
+            </div>
+            
+        <div class="section"><h2>📜 JavaScript Analysis</h2><p>Total JS files: <strong>0</strong></p></div>
+        
+            <div class="section">
+                <h2>📸 Screenshot</h2>
+                <img src="/screenshots/axler.com_20260706_134103.png" alt="Screenshot of axler.com" style="max-width:100%; border:1px solid #ddd; border-radius:4px;">
+            </div>
+            
+    </div>
+
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+</body>
+</html>

@@ -111,5 +111,19 @@ TOOLS = [
                 "required": ["url"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_pdf",
+            "description": "Generate a PDF report of the most recent scan results for a domain. If no scan exists, it will run a full scan first automatically.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string", "description": "The domain to generate report for (e.g., example.com)"}
+                },
+                "required": ["domain"]
+            }
+        }
     }
 ]

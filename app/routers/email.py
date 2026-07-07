@@ -1,108 +1,61 @@
-# ── Email Configuration Router ─────────────────────────────
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
-import os
+from typing import Optional
+import json
 import smtplib
 from email.mime.text import MIMEText
-from datetime import datetime
+from email.mime.multipart import MIMEMultipart
 
 router = APIRouter(prefix="/api/email", tags=["email"])
 
-CONFIG_FILE = "email_config.txt"
+CONFIG_FILE = "email_config.json"
 
 class EmailConfig(BaseModel):
+    sender_email: str = ""
+    app_password: str = ""
+    recipient_emails: str = ""
+
+class TestEmailRequest(BaseModel):
     sender_email: str
-    sender_password: str
-    recipients: List[str]
+    app_password: str
+    recipient_emails: str
 
-class EmailResponse(BaseModel):
-    success: bool
-    error: Optional[str] = None
-
-def save_config(sender_email: str, sender_password: str, recipients: List[str]):
-    """Save email config to file"""
-    with open(CONFIG_FILE, 'w') as f:
-        f.write(f"{sender_email}\n")
-        f.write(f"{sender_password}\n")
-        f.write(','.join(recipients))
-
-def load_config() -> dict:
-    """Load email config from file"""
+def load_config():
     try:
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
-                lines = f.read().strip().split('\n')
-                if len(lines) >= 3:
-                    return {
-                        "sender_email": lines[0].strip(),
-                        "sender_password": lines[1].strip(),
-                        "recipients": [e.strip() for e in lines[2].split(',') if e.strip()]
-                    }
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
     except:
-        pass
-    return {"sender_email": "", "sender_password": "", "recipients": []}
+        return {"sender_email": "", "app_password": "", "recipient_emails": ""}
+
+def save_config(config):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
 
 @router.get("/config")
 async def get_email_config():
-    config = load_config()
-    return {
-        "sender_email": config.get("sender_email", ""),
-        "sender_password": config.get("sender_password", ""),
-        "recipients": config.get("recipients", [])
-    }
+    return load_config()
 
 @router.post("/config")
-async def update_email_config(config: EmailConfig):
-    try:
-        recipients = [e.strip() for e in config.recipients if e.strip()]
-        if not recipients:
-            return EmailResponse(success=False, error="No valid recipient emails")
-        if not config.sender_email or '@' not in config.sender_email:
-            return EmailResponse(success=False, error="Invalid sender email")
-        if not config.sender_password or len(config.sender_password) < 8:
-            return EmailResponse(success=False, error="Invalid app password")
-        
-        save_config(config.sender_email, config.sender_password, recipients)
-        return EmailResponse(success=True)
-    except Exception as e:
-        return EmailResponse(success=False, error=str(e))
+async def save_email_config(config: EmailConfig):
+    save_config(config.dict())
+    return {"status": "success", "message": "Configuration saved"}
 
 @router.post("/test")
-async def send_test_email():
-    config = load_config()
-    
-    sender_email = config.get("sender_email", "")
-    sender_password = config.get("sender_password", "")
-    recipients = config.get("recipients", [])
-    
-    if not sender_email or not sender_password:
-        return EmailResponse(success=False, error="SMTP not configured. Please save email settings first.")
-    
-    if not recipients:
-        return EmailResponse(success=False, error="No recipients configured. Please add recipient emails.")
-    
+async def test_email(request: TestEmailRequest):
     try:
-        subject = "[Recon] Test Email"
-        body = f"""
-Test Email from Recon Tool
-
-Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Recipients: {', '.join(recipients)}
-
-✅ Email configuration is working!
-"""
-        msg = MIMEText(body)
-        msg['Subject'] = subject
-        msg['From'] = sender_email
-        msg['To'] = ', '.join(recipients)
+        msg = MIMEMultipart()
+        msg['From'] = request.sender_email
+        recipients = [r.strip() for r in request.recipient_emails.split(",") if r.strip()]
+        msg['To'] = ", ".join(recipients)
+        msg['Subject'] = "Recon Tool - Test Email"
+        msg.attach(MIMEText("✅ This is a test email from Recon Tool. Your email configuration is working!", "plain"))
         
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        server.login(sender_email, sender_password)
+        server.login(request.sender_email, request.app_password)
         server.send_message(msg)
         server.quit()
         
-        return EmailResponse(success=True)
+        return {"status": "success", "message": "Test email sent successfully!"}
     except Exception as e:
-        return EmailResponse(success=False, error=str(e))
+        return {"status": "error", "message": str(e)}

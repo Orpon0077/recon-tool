@@ -2,7 +2,10 @@
 <html>
 <head>
     <title>Recon AI Chat</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
     <style>
         .chat-layout {
             display: flex;
@@ -331,6 +334,93 @@
         .status-offline {
             color: #ff4444;
         }
+
+        .reasoning-box {
+            background: #0d1a15;
+            border: 1px solid #2a4a3a;
+            border-radius: 6px;
+            margin: 8px 0 12px 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .reasoning-box .reasoning-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 14px;
+            background: #0d1210;
+            cursor: pointer;
+            user-select: none;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            color: #6a8070;
+            border-bottom: 1px solid #1a2e20;
+            transition: all 0.2s;
+        }
+        
+        .reasoning-box .reasoning-header:hover {
+            background: #111714;
+            color: #b8cfbe;
+        }
+        
+        .reasoning-box .reasoning-header .toggle-icon {
+            transition: transform 0.3s ease;
+            font-size: 0.7rem;
+        }
+        
+        .reasoning-box .reasoning-header .toggle-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+        
+        .reasoning-box .reasoning-content {
+            padding: 12px 16px;
+            color: #6a8070;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.7rem;
+            line-height: 1.8;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            background: #0a0f0d;
+        }
+        
+        .reasoning-box .reasoning-content::-webkit-scrollbar {
+            width: 3px;
+        }
+        
+        .reasoning-box .reasoning-content::-webkit-scrollbar-thumb {
+            background: #2a4a3a;
+            border-radius: 2px;
+        }
+        
+        .reasoning-box .reasoning-content.hidden {
+            display: none;
+        }
+        
+        .reasoning-box .reasoning-badge {
+            color: #6a8070;
+            font-size: 0.5rem;
+            background: #1a2e20;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+        
+        .reasoning-box .thinking-indicator {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #00ff88;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
         
         @media (max-width: 768px) {
             .chat-layout {
@@ -400,6 +490,7 @@ Tell me a domain and what you want to know — I will handle the rest.
     <script>
         let currentSessionId = null;
         let isProcessing = false;
+        let showReasoning = true;
         const messages = document.getElementById('messages');
         const input = document.getElementById('promptInput');
         const historyList = document.getElementById('historyList');
@@ -504,9 +595,37 @@ Tell me a domain and what you want to know — I will handle the rest.
             loadChatHistory();
         }
 
-        function addMessage(type, text, isTyping = false) {
+        function createReasoningBox(reasoningText) {
+            const div = document.createElement('div');
+            div.className = 'reasoning-box';
+            div.innerHTML = `
+                <div class="reasoning-header" onclick="toggleReasoning(this)">
+                    <span><span class="thinking-indicator"></span>Thinking Process <span class="reasoning-badge">click to expand</span></span>
+                    <span class="toggle-icon collapsed">▶</span>
+                </div>
+                <div class="reasoning-content hidden">${reasoningText.replace(/\n/g, '<br>')}</div>
+            `;
+            return div;
+        }
+
+        function toggleReasoning(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.toggle-icon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.classList.remove('collapsed');
+                icon.textContent = '▼';
+            } else {
+                content.classList.add('hidden');
+                icon.classList.add('collapsed');
+                icon.textContent = '▶';
+            }
+        }
+
+        function addMessage(type, text, isTyping = false, reasoning = null) {
             const div = document.createElement('div');
             div.className = `message ${type}`;
+            
             if (isTyping) {
                 div.id = 'typing';
                 div.innerHTML = `
@@ -517,7 +636,29 @@ Tell me a domain and what you want to know — I will handle the rest.
                     </div>
                 `;
             } else {
-                div.innerHTML = text.replace(/\n/g, '<br>');
+                let content = '';
+                if (reasoning && showReasoning) {
+                    content += createReasoningBox(reasoning).outerHTML;
+                }
+                
+                // ── Format text with proper line breaks ──
+                let formattedText = text;
+                
+                // If text contains newline characters, use them
+                if (formattedText.includes('\n')) {
+                    formattedText = formattedText.replace(/\n/g, '<br>');
+                } else {
+                    // Fallback: If there are bullet points without newlines, add breaks
+                    // Look for patterns like "- " or "* " or numbered lists
+                    formattedText = formattedText.replace(/(?<!<br>)\s*(-\s|•\s|\*\s|\d+\.\s)/g, '<br>$1');
+                    // Remove leading <br> if present
+                    if (formattedText.startsWith('<br>')) {
+                        formattedText = formattedText.substring(4);
+                    }
+                }
+                
+                content += formattedText;
+                div.innerHTML = content;
             }
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
@@ -542,74 +683,119 @@ Tell me a domain and what you want to know — I will handle the rest.
             
             const typingDiv = addMessage('assistant', '', true);
 
-            // Timeout setup (10 Minutes)
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 600000);
-
             try {
-                const response = await fetch('/api/llm/chat', {
+                const response = await fetch('/api/llm/chat/stream', {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ 
                         prompt: prompt,
-                        session_id: currentSessionId 
-                    }),
-                    signal: controller.signal // Added the abort signal here
+                        session_id: currentSessionId,
+                        show_reasoning: true
+                    })
                 });
 
-                // Clear timeout once response is received successfully
-                clearTimeout(timeoutId);
+                removeTyping();
 
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.detail || `HTTP ${response.status}`);
                 }
 
-                const data = await response.json();
-                
-                removeTyping();
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let currentMessage = null;
+                let reasoningText = '';
+                let hasReasoning = false;
+                let finalMessageDiv = null;
 
-                if (data.session_id && !currentSessionId) {
-                    currentSessionId = data.session_id;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                if (data.type === 'reasoning') {
+                                    hasReasoning = true;
+                                    reasoningText = data.content;
+                                    
+                                    if (!currentMessage) {
+                                        currentMessage = document.createElement('div');
+                                        currentMessage.className = 'message assistant';
+                                        messages.appendChild(currentMessage);
+                                    }
+                                    currentMessage.innerHTML = createReasoningBox(reasoningText).outerHTML;
+                                    messages.scrollTop = messages.scrollHeight;
+                                    
+                                } else if (data.type === 'reasoning_done') {
+                                    if (currentMessage) {
+                                        const box = currentMessage.querySelector('.reasoning-box');
+                                        if (box) {
+                                            const header = box.querySelector('.reasoning-header');
+                                            const content = box.querySelector('.reasoning-content');
+                                            const icon = box.querySelector('.toggle-icon');
+                                            if (header) {
+                                                header.innerHTML = `<span><span class="thinking-indicator" style="display:none;"></span>Thinking Process <span class="reasoning-badge">click to expand</span></span><span class="toggle-icon collapsed">▶</span>`;
+                                            }
+                                            if (content) {
+                                                content.classList.add('hidden');
+                                            }
+                                            if (icon) {
+                                                icon.classList.add('collapsed');
+                                                icon.textContent = '▶';
+                                            }
+                                        }
+                                    }
+                                    
+                                } else if (data.type === 'response') {
+                                    if (!finalMessageDiv) {
+                                        finalMessageDiv = document.createElement('div');
+                                        finalMessageDiv.className = 'message assistant';
+                                        finalMessageDiv.style.borderLeft = '2px solid #00ff88';
+                                        finalMessageDiv.style.paddingLeft = '12px';
+                                        messages.appendChild(finalMessageDiv);
+                                        finalMessageDiv._fullContent = '';
+                                    }
+                                    
+                                    finalMessageDiv._fullContent += data.content;
+                                                                        let displayContent = '';
+                                    if (hasReasoning && currentMessage) {
+                                        displayContent = currentMessage.outerHTML;
+                                    }
+                                    displayContent += finalMessageDiv._fullContent.replace(/\n/g, '<br>');
+                                    finalMessageDiv.innerHTML = displayContent;
+                                    messages.scrollTop = messages.scrollHeight;
+                                    
+                                } else if (data.type === 'done') {
+                                    break;
+                                } else if (data.type === 'error') {
+                                    addMessage('system', `Error: ${data.content}`);
+                                }
+                            } catch (e) {
+                                console.error('Parse error:', e);
+                            }
+                        }
+                    }
                 }
 
-                let responseText = data.response || 'No response received.';
-
-                if (data.scan_id) {
-                    responseText += `<br><br><a href="/?scan_id=${data.scan_id}" target="_blank" class="view-dashboard-btn">📊 View Dashboard</a>`;
+                if (!finalMessageDiv || !finalMessageDiv._fullContent) {
+                    addMessage('system', 'No response received. Please try again.');
                 }
 
-                if (data.provider) {
-                    responseText += `<div class="message-meta">⚡ Provider: ${data.provider}</div>`;
-                }
-
-                if (data.session_id) {
-                    responseText += `<div class="message-meta">🆔 Session: ${data.session_id.substring(0, 8)}...</div>`;
-                }
-
-                addMessage('assistant', responseText);
-                
                 await loadChatHistory();
-                
-                document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
-                document.querySelector(`.history-item[onclick="loadConversation('${currentSessionId}')"]`)?.classList.add('active');
-                
                 setStatus(true);
 
             } catch (err) {
-                // Clear timeout in case of regular errors before 5 mins
-                clearTimeout(timeoutId);
                 removeTyping();
                 console.error('Chat error:', err);
-                
-                // Handling the specific error when timeout triggers (AbortError)
-                if (err.name === 'AbortError') {
-                    addMessage('system', `❌ Error: Request timed out after 5 minutes.`);
-                } else {
-                    addMessage('system', `❌ Error: ${err.message || 'Something went wrong. Please try again.'}`);
-                }
+                addMessage('system', `Error: ${err.message || 'Something went wrong. Please try again.'}`);
                 setStatus(false);
             } finally {
                 isProcessing = false;
@@ -631,6 +817,7 @@ Tell me a domain and what you want to know — I will handle the rest.
         window.sendMessage = sendMessage;
         window.newChat = newChat;
         window.loadConversation = loadConversation;
+        window.toggleReasoning = toggleReasoning;
     </script>
 </body>
 </html>

@@ -1,108 +1,99 @@
-# ── Email Configuration Router ─────────────────────────────
-from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import List, Optional
-import os
+# ── Email Notifier Module ──────────────────────────────────
 import smtplib
+import json
+import os
 from email.mime.text import MIMEText
-from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from pathlib import Path
+from typing import Dict, Optional
 
-router = APIRouter(prefix="/api/email", tags=["email"])
+CONFIG_FILE = "email_config.json"
 
-CONFIG_FILE = "email_config.txt"
-
-class EmailConfig(BaseModel):
-    sender_email: str
-    sender_password: str
-    recipients: List[str]
-
-class EmailResponse(BaseModel):
-    success: bool
-    error: Optional[str] = None
-
-def save_config(sender_email: str, sender_password: str, recipients: List[str]):
-    """Save email config to file"""
-    with open(CONFIG_FILE, 'w') as f:
-        f.write(f"{sender_email}\n")
-        f.write(f"{sender_password}\n")
-        f.write(','.join(recipients))
-
-def load_config() -> dict:
-    """Load email config from file"""
+def load_config() -> Dict:
     try:
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
-                lines = f.read().strip().split('\n')
-                if len(lines) >= 3:
-                    return {
-                        "sender_email": lines[0].strip(),
-                        "sender_password": lines[1].strip(),
-                        "recipients": [e.strip() for e in lines[2].split(',') if e.strip()]
-                    }
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
     except:
-        pass
-    return {"sender_email": "", "sender_password": "", "recipients": []}
+        return {"sender_email": "", "app_password": "", "recipient_emails": ""}
 
-@router.get("/config")
-async def get_email_config():
-    config = load_config()
-    return {
-        "sender_email": config.get("sender_email", ""),
-        "sender_password": config.get("sender_password", ""),
-        "recipients": config.get("recipients", [])
-    }
+def save_config(config: Dict):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
 
-@router.post("/config")
-async def update_email_config(config: EmailConfig):
+
+async def send_email_notification(url: str, scan_result: Dict, pdf_path: Optional[str] = None):
+    """Send email notification with scan results"""
     try:
-        recipients = [e.strip() for e in config.recipients if e.strip()]
+        config = load_config()
+        sender = config.get("sender_email", "").strip()
+        password = config.get("app_password", "").strip()
+        recipients_raw = config.get("recipient_emails", "").strip()
+        
+        if not sender or not password or not recipients_raw:
+            print("[EMAIL] Config missing, skipping")
+            return
+        
+        recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
         if not recipients:
-            return EmailResponse(success=False, error="No valid recipient emails")
-        if not config.sender_email or '@' not in config.sender_email:
-            return EmailResponse(success=False, error="Invalid sender email")
-        if not config.sender_password or len(config.sender_password) < 8:
-            return EmailResponse(success=False, error="Invalid app password")
+            print("[EMAIL] No recipients")
+            return
         
-        save_config(config.sender_email, config.sender_password, recipients)
-        return EmailResponse(success=True)
-    except Exception as e:
-        return EmailResponse(success=False, error=str(e))
-
-@router.post("/test")
-async def send_test_email():
-    config = load_config()
-    
-    sender_email = config.get("sender_email", "")
-    sender_password = config.get("sender_password", "")
-    recipients = config.get("recipients", [])
-    
-    if not sender_email or not sender_password:
-        return EmailResponse(success=False, error="SMTP not configured. Please save email settings first.")
-    
-    if not recipients:
-        return EmailResponse(success=False, error="No recipients configured. Please add recipient emails.")
-    
-    try:
-        subject = "[Recon] Test Email"
+        scan_id = scan_result.get("scan_id", "N/A")
+        timestamp = scan_result.get("timestamp", datetime.now().isoformat())
+        
+        subject = f"[RECON TOOL] Scan Complete: {url}"
+        
         body = f"""
-Test Email from Recon Tool
+╔══════════════════════════════════════╗
+║     SCAN COMPLETE REPORT            ║
+╚══════════════════════════════════════╝
 
-Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Recipients: {', '.join(recipients)}
+📍 Target URL: {url}
+🆔 Scan ID: {scan_id}
+🕐 Time: {timestamp}
 
-✅ Email configuration is working!
+📊 SUMMARY:
+─────────────────────────────────────
+🔐 SSL: {scan_result.get('ssl', {}).get('issued_to', 'N/A') if scan_result.get('ssl') else 'N/A'}
+🛡️ Security Score: {scan_result.get('security_headers', {}).get('score', 0) if scan_result.get('security_headers') else 0}/100
+🔌 Open Ports: {scan_result.get('ports', {}).get('total_open', 0) if scan_result.get('ports') else 0}
+🌐 Subdomains: {scan_result.get('subdomains', {}).get('total_found', 0) if scan_result.get('subdomains') else 0}
+📄 Endpoints: {scan_result.get('crawl', {}).get('total_found', 0) if scan_result.get('crawl') else 0}
+
+📎 PDF Report: {'✅ Generated' if pdf_path else '❌ Not available'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+View full report in dashboard:
+http://localhost:8000/?scan_id={scan_id}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Generated by Recon Tool v1.0
 """
-        msg = MIMEText(body)
-        msg['Subject'] = subject
-        msg['From'] = sender_email
-        msg['To'] = ', '.join(recipients)
         
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        msg = MIMEMultipart()
+        msg['From'] = sender
+        msg['To'] = ", ".join(recipients)
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, "plain"))
+        
+        if pdf_path and os.path.exists(pdf_path):
+            with open(pdf_path, 'rb') as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f'attachment; filename={Path(pdf_path).name}')
+                msg.attach(part)
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        server.login(sender_email, sender_password)
+        server.login(sender, password)
         server.send_message(msg)
         server.quit()
         
-        return EmailResponse(success=True)
+        print(f"[EMAIL] ✅ Sent to {len(recipients)} recipient(s)")
+        return True
+        
     except Exception as e:
-        return EmailResponse(success=False, error=str(e))
+        print(f"[EMAIL] ❌ Failed: {e}")
+        return False
