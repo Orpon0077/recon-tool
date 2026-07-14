@@ -13,7 +13,7 @@ def normalize_url(url: str) -> str:
         url = url.replace('http://http://', 'http://')
     return url
 
-def fetch_js_content(js_url: str, timeout: int = 8) -> tuple:
+def fetch_js_content(js_url: str, timeout: int = 20) -> tuple:  # ← timeout 20
     """Fetch a single JS file content with timeout. Returns (url, content) or (url, None)."""
     try:
         response = requests.get(js_url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
@@ -34,7 +34,7 @@ def scan_javascript(url: str) -> dict:
     max_total_time = 55  # seconds – leave room for the 60s timeout
 
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=30)  # ← timeout 30
         html = response.text
     except Exception as e:
         return {"error": str(e), "total_js_files": 0}
@@ -59,12 +59,11 @@ def scan_javascript(url: str) -> dict:
     # Fetch JS files in parallel using ThreadPoolExecutor
     js_contents = []
     with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(fetch_js_content, js_url, 8): js_url for js_url in js_files_to_scan}
+        futures = {executor.submit(fetch_js_content, js_url, 20): js_url for js_url in js_files_to_scan}  # timeout 20
         for future in as_completed(futures):
-            # Stop if we're approaching the total timeout
             if time.time() - start_time > max_total_time:
                 break
-            js_url, content = future.result(timeout=10)
+            js_url, content = future.result(timeout=15)
             if content:
                 js_contents.append((js_url, content))
 

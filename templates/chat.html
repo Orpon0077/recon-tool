@@ -160,6 +160,7 @@
             max-width: 85%;
             word-wrap: break-word;
             line-height: 1.6;
+            position: relative;
         }
         
         .chat-main .message.user {
@@ -335,25 +336,25 @@
             color: #ff4444;
         }
 
+        /* ── Reasoning Box Styles ── */
         .reasoning-box {
             background: #0d1a15;
             border: 1px solid #2a4a3a;
             border-radius: 6px;
-            margin: 8px 0 12px 0;
+            margin: 6px 0 12px 0;
             overflow: hidden;
-            transition: all 0.3s ease;
         }
         
         .reasoning-box .reasoning-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 14px;
+            padding: 6px 12px;
             background: #0d1210;
             cursor: pointer;
             user-select: none;
             font-family: 'Share Tech Mono', monospace;
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             color: #6a8070;
             border-bottom: 1px solid #1a2e20;
             transition: all 0.2s;
@@ -366,7 +367,7 @@
         
         .reasoning-box .reasoning-header .toggle-icon {
             transition: transform 0.3s ease;
-            font-size: 0.7rem;
+            font-size: 0.6rem;
         }
         
         .reasoning-box .reasoning-header .toggle-icon.collapsed {
@@ -374,10 +375,10 @@
         }
         
         .reasoning-box .reasoning-content {
-            padding: 12px 16px;
+            padding: 10px 14px;
             color: #6a8070;
             font-family: 'Share Tech Mono', monospace;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             line-height: 1.8;
             max-height: 300px;
             overflow-y: auto;
@@ -420,6 +421,28 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.2; }
+        }
+
+        /* ── Assistant message structure ── */
+        .assistant-message-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        .assistant-message-wrapper .response-text {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
+        .assistant-message-wrapper .message.assistant {
+            margin-right: auto;
+            border-left: 2px solid #00ff88;
+            padding: 12px 18px;
+            background: #0d1a15;
+            border-radius: 8px;
+            color: #00ff88;
+            max-width: 85%;
         }
         
         @media (max-width: 768px) {
@@ -595,6 +618,7 @@ Tell me a domain and what you want to know — I will handle the rest.
             loadChatHistory();
         }
 
+        // ── Helper: Create reasoning box element ──
         function createReasoningBox(reasoningText) {
             const div = document.createElement('div');
             div.className = 'reasoning-box';
@@ -608,6 +632,7 @@ Tell me a domain and what you want to know — I will handle the rest.
             return div;
         }
 
+        // ── Toggle reasoning content ──
         function toggleReasoning(header) {
             const content = header.nextElementSibling;
             const icon = header.querySelector('.toggle-icon');
@@ -622,6 +647,7 @@ Tell me a domain and what you want to know — I will handle the rest.
             }
         }
 
+        // ── Add a complete message (for history) ──
         function addMessage(type, text, isTyping = false, reasoning = null) {
             const div = document.createElement('div');
             div.className = `message ${type}`;
@@ -640,24 +666,17 @@ Tell me a domain and what you want to know — I will handle the rest.
                 if (reasoning && showReasoning) {
                     content += createReasoningBox(reasoning).outerHTML;
                 }
-                
-                // ── Format text with proper line breaks ──
+                // Format text with line breaks
                 let formattedText = text;
-                
-                // If text contains newline characters, use them
                 if (formattedText.includes('\n')) {
                     formattedText = formattedText.replace(/\n/g, '<br>');
                 } else {
-                    // Fallback: If there are bullet points without newlines, add breaks
-                    // Look for patterns like "- " or "* " or numbered lists
                     formattedText = formattedText.replace(/(?<!<br>)\s*(-\s|•\s|\*\s|\d+\.\s)/g, '<br>$1');
-                    // Remove leading <br> if present
                     if (formattedText.startsWith('<br>')) {
                         formattedText = formattedText.substring(4);
                     }
                 }
-                
-                content += formattedText;
+                content += `<div class="response-text">${formattedText}</div>`;
                 div.innerHTML = content;
             }
             messages.appendChild(div);
@@ -670,6 +689,7 @@ Tell me a domain and what you want to know — I will handle the rest.
             if (typing) typing.remove();
         }
 
+        // ── Main send function (FIXED: wrapper appended immediately) ──
         async function sendMessage() {
             const prompt = input.value.trim();
             if (!prompt || isProcessing) return;
@@ -682,6 +702,10 @@ Tell me a domain and what you want to know — I will handle the rest.
             input.value = '';
             
             const typingDiv = addMessage('assistant', '', true);
+            let reasoningBox = null;
+            let responseDiv = null;
+            let responseText = '';
+            let reasoningContent = '';
 
             try {
                 const response = await fetch('/api/llm/chat/stream', {
@@ -705,10 +729,11 @@ Tell me a domain and what you want to know — I will handle the rest.
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-                let currentMessage = null;
-                let reasoningText = '';
-                let hasReasoning = false;
-                let finalMessageDiv = null;
+
+                // Create container for assistant message and append immediately
+                const wrapper = document.createElement('div');
+                wrapper.className = 'assistant-message-wrapper';
+                messages.appendChild(wrapper);
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -723,60 +748,62 @@ Tell me a domain and what you want to know — I will handle the rest.
                                 const data = JSON.parse(line.slice(6));
                                 
                                 if (data.type === 'reasoning') {
-                                    hasReasoning = true;
-                                    reasoningText = data.content;
-                                    
-                                    if (!currentMessage) {
-                                        currentMessage = document.createElement('div');
-                                        currentMessage.className = 'message assistant';
-                                        messages.appendChild(currentMessage);
+                                    reasoningContent = data.content;
+                                    if (!reasoningBox) {
+                                        reasoningBox = createReasoningBox(reasoningContent);
+                                        wrapper.appendChild(reasoningBox);
+                                    } else {
+                                        // Update reasoning content
+                                        const contentDiv = reasoningBox.querySelector('.reasoning-content');
+                                        if (contentDiv) {
+                                            contentDiv.innerHTML = reasoningContent.replace(/\n/g, '<br>');
+                                        }
                                     }
-                                    currentMessage.innerHTML = createReasoningBox(reasoningText).outerHTML;
                                     messages.scrollTop = messages.scrollHeight;
                                     
                                 } else if (data.type === 'reasoning_done') {
-                                    if (currentMessage) {
-                                        const box = currentMessage.querySelector('.reasoning-box');
-                                        if (box) {
-                                            const header = box.querySelector('.reasoning-header');
-                                            const content = box.querySelector('.reasoning-content');
-                                            const icon = box.querySelector('.toggle-icon');
-                                            if (header) {
-                                                header.innerHTML = `<span><span class="thinking-indicator" style="display:none;"></span>Thinking Process <span class="reasoning-badge">click to expand</span></span><span class="toggle-icon collapsed">▶</span>`;
-                                            }
-                                            if (content) {
-                                                content.classList.add('hidden');
-                                            }
-                                            if (icon) {
-                                                icon.classList.add('collapsed');
-                                                icon.textContent = '▶';
-                                            }
+                                    if (reasoningBox) {
+                                        const header = reasoningBox.querySelector('.reasoning-header');
+                                        const content = reasoningBox.querySelector('.reasoning-content');
+                                        const icon = reasoningBox.querySelector('.toggle-icon');
+                                        if (header) {
+                                            header.innerHTML = `<span><span class="thinking-indicator" style="display:none;"></span>Thinking Process <span class="reasoning-badge">click to expand</span></span><span class="toggle-icon collapsed">▶</span>`;
+                                        }
+                                        if (content) {
+                                            content.classList.add('hidden');
+                                        }
+                                        if (icon) {
+                                            icon.classList.add('collapsed');
+                                            icon.textContent = '▶';
                                         }
                                     }
                                     
                                 } else if (data.type === 'response') {
-                                    if (!finalMessageDiv) {
-                                        finalMessageDiv = document.createElement('div');
-                                        finalMessageDiv.className = 'message assistant';
-                                        finalMessageDiv.style.borderLeft = '2px solid #00ff88';
-                                        finalMessageDiv.style.paddingLeft = '12px';
-                                        messages.appendChild(finalMessageDiv);
-                                        finalMessageDiv._fullContent = '';
+                                    responseText += data.content;
+                                    if (!responseDiv) {
+                                        responseDiv = document.createElement('div');
+                                        responseDiv.className = 'message assistant';
+                                        responseDiv.style.borderLeft = '2px solid #00ff88';
+                                        responseDiv.style.paddingLeft = '12px';
+                                        responseDiv.style.marginTop = '4px';
+                                        const respWrap = document.createElement('div');
+                                        respWrap.className = 'response-text';
+                                        responseDiv.appendChild(respWrap);
+                                        wrapper.appendChild(responseDiv);
                                     }
-                                    
-                                    finalMessageDiv._fullContent += data.content;
-                                                                        let displayContent = '';
-                                    if (hasReasoning && currentMessage) {
-                                        displayContent = currentMessage.outerHTML;
+                                    const textDiv = responseDiv.querySelector('.response-text');
+                                    if (textDiv) {
+                                        textDiv.innerHTML = responseText.replace(/\n/g, '<br>');
                                     }
-                                    displayContent += finalMessageDiv._fullContent.replace(/\n/g, '<br>');
-                                    finalMessageDiv.innerHTML = displayContent;
                                     messages.scrollTop = messages.scrollHeight;
                                     
                                 } else if (data.type === 'done') {
                                     break;
                                 } else if (data.type === 'error') {
-                                    addMessage('system', `Error: ${data.content}`);
+                                    const errDiv = document.createElement('div');
+                                    errDiv.className = 'message system';
+                                    errDiv.textContent = `Error: ${data.content}`;
+                                    messages.appendChild(errDiv);
                                 }
                             } catch (e) {
                                 console.error('Parse error:', e);
@@ -785,8 +812,12 @@ Tell me a domain and what you want to know — I will handle the rest.
                     }
                 }
 
-                if (!finalMessageDiv || !finalMessageDiv._fullContent) {
-                    addMessage('system', 'No response received. Please try again.');
+                // If no response received, show a fallback
+                if (!responseText && !reasoningContent) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'message system';
+                    fallback.textContent = 'No response received. Please try again.';
+                    messages.appendChild(fallback);
                 }
 
                 await loadChatHistory();
@@ -795,7 +826,10 @@ Tell me a domain and what you want to know — I will handle the rest.
             } catch (err) {
                 removeTyping();
                 console.error('Chat error:', err);
-                addMessage('system', `Error: ${err.message || 'Something went wrong. Please try again.'}`);
+                const errDiv = document.createElement('div');
+                errDiv.className = 'message system';
+                errDiv.textContent = `Error: ${err.message || 'Something went wrong. Please try again.'}`;
+                messages.appendChild(errDiv);
                 setStatus(false);
             } finally {
                 isProcessing = false;

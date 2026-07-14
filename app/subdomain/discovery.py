@@ -6,6 +6,7 @@ import subprocess
 import socket
 import os
 import concurrent.futures
+import time
 from typing import List
 from urllib.parse import urlparse
 
@@ -109,7 +110,6 @@ BRUTE_SUBDOMAINS = [
     "root", "master2",
 ]
 
-
 def normalize_domain(url: str) -> str:
     """Extract clean domain from URL."""
     parsed = urlparse(url)
@@ -121,9 +121,8 @@ def normalize_domain(url: str) -> str:
         domain = domain[4:]
     return domain.lower().strip()
 
-
 def resolve_domain(hostname: str, timeout: float = 2.0) -> str:
-    """Resolve hostname to IP. Reduced timeout for speed."""
+    """Resolve hostname to IP."""
     original_timeout = socket.getdefaulttimeout()
     try:
         socket.setdefaulttimeout(timeout)
@@ -132,7 +131,6 @@ def resolve_domain(hostname: str, timeout: float = 2.0) -> str:
         return None
     finally:
         socket.setdefaulttimeout(original_timeout)
-
 
 def run_subfinder(domain: str) -> List[str]:
     """Run Subfinder for passive subdomain enumeration."""
@@ -151,9 +149,10 @@ def run_subfinder(domain: str) -> List[str]:
         return []
     try:
         print(f"[Subfinder] Using: {subfinder_path}")
+        # Increased subprocess timeout to 300 seconds
         result = subprocess.run(
-            [subfinder_path, "-d", domain, "-silent", "-timeout", "30", "-t", "50"],
-            capture_output=True, text=True, timeout=120,
+            [subfinder_path, "-d", domain, "-silent", "-timeout", "60", "-t", "50"],
+            capture_output=True, text=True, timeout=300,
         )
         lines = [l.strip() for l in result.stdout.split("\n")
                  if l.strip() and domain in l and not l.startswith("[")]
@@ -165,7 +164,6 @@ def run_subfinder(domain: str) -> List[str]:
     except Exception as e:
         print(f"[Subfinder] Error: {e}")
         return []
-
 
 def run_assetfinder(domain: str) -> List[str]:
     """Run Assetfinder tool for passive subdomain discovery."""
@@ -187,9 +185,10 @@ def run_assetfinder(domain: str) -> List[str]:
 
     try:
         print(f"[Assetfinder] Using: {assetfinder_path}")
+        # Increased timeout to 200 seconds
         result = subprocess.run(
             [assetfinder_path, "--subs-only", domain],
-            capture_output=True, text=True, timeout=90,  # ← increased to 90s
+            capture_output=True, text=True, timeout=200,
         )
         lines = [l.strip() for l in result.stdout.split("\n") if l.strip() and domain in l]
         print(f"[Assetfinder] Found: {len(lines)}")
@@ -202,14 +201,13 @@ def run_assetfinder(domain: str) -> List[str]:
         return []
 
 def check_single_subdomain(args) -> str:
-    """Check single subdomain — used in thread pool. Reduced retry."""
+    """Check single subdomain — used in thread pool."""
     sub, domain = args
     hostname = f"{sub}.{domain}"
-    ip = resolve_domain(hostname, timeout=2.0)  # Reduced from 4.0 to 2.0
+    ip = resolve_domain(hostname, timeout=2.0)
     if ip:
         return hostname
     return None
-
 
 def dns_bruteforce(domain: str) -> List[str]:
     """
@@ -220,24 +218,28 @@ def dns_bruteforce(domain: str) -> List[str]:
     print(f"[DNS Bruteforce] Trying {len(BRUTE_SUBDOMAINS)} subdomains...")
 
     args_list = [(sub, domain) for sub in BRUTE_SUBDOMAINS]
+    start_time = time.time()
+    timeout_total = 400  # increased to 400 seconds (6.6 minutes)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
-        results = list(executor.map(check_single_subdomain, args_list))
-
-    for result in results:
-        if result:
-            ip = resolve_domain(result)
-            found.append(result)
-            print(f"[DNS Bruteforce] Found: {result} -> {ip or 'unknown'}")
+        futures = [executor.submit(check_single_subdomain, args) for args in args_list]
+        for future in concurrent.futures.as_completed(futures):
+            if time.time() - start_time > timeout_total:
+                print("[DNS Bruteforce] Global timeout reached, stopping.")
+                break
+            result = future.result(timeout=5)
+            if result:
+                ip = resolve_domain(result)
+                found.append(result)
+                print(f"[DNS Bruteforce] Found: {result} -> {ip or 'unknown'}")
 
     print(f"[DNS Bruteforce] Total: {len(found)}")
     return found
 
-
 def socket_fallback(domain: str) -> List[str]:
     """
     Socket-based fallback for guaranteed basic subdomain coverage.
-    Checks 30 most critical subdomains with increased timeout.
+    Checks 30 most critical subdomains.
     """
     critical_subs = [
         "www", "mail", "ftp", "api", "dev", "staging", "blog",
@@ -262,7 +264,6 @@ def socket_fallback(domain: str) -> List[str]:
 
     print(f"[Socket Fallback] Found: {len(found)}")
     return found
-
 
 def discover_subdomains(url: str) -> dict:
     """
@@ -305,6 +306,5 @@ def discover_subdomains(url: str) -> dict:
         "subdomains": results,
         "total_found": len(results),
     }
-
 
 discover_subdomains_advanced = discover_subdomains

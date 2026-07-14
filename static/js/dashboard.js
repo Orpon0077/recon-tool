@@ -7,6 +7,16 @@ const resultsGrid = document.getElementById("resultsGrid");
 const statusLabel = document.getElementById("statusLabel");
 const statusDot   = document.getElementById("statusDot");
 
+// ── Chat Elements ──────────────────────────────────────────
+const chatMessages = document.getElementById("chatMessages");
+const chatInput = document.getElementById("chatInput");
+const sendChatBtn = document.getElementById("sendChatBtn");
+const reasoningBox = document.getElementById("reasoningBox");
+const reasoningContent = document.getElementById("reasoningContent");
+
+// ── Scan lock ──
+let _scanRunning = false;
+
 // ── Check URL for scan_id on load ──
 document.addEventListener("DOMContentLoaded", function() {
   const customRadio = document.getElementById("customPortRadio");
@@ -31,6 +41,19 @@ document.addEventListener("DOMContentLoaded", function() {
 
   loadAutomationStatus();
   loadEmailConfig();
+
+  // ── Chat event listeners ──
+  if (sendChatBtn) {
+    sendChatBtn.addEventListener("click", sendChatMessage);
+  }
+  if (chatInput) {
+    chatInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
+  }
 });
 
 urlInput.addEventListener("keydown", e => {
@@ -49,6 +72,111 @@ function log(text, type = "info") {
   line.textContent = `[${new Date().toTimeString().slice(0, 8)}] ${text}`;
   terminalLog.appendChild(line);
   terminalLog.scrollTop = terminalLog.scrollHeight;
+}
+
+// ── Chat Functions ─────────────────────────────────────────
+function appendChatMessage(text, isUser = false) {
+  if (!chatMessages) return;
+  const div = document.createElement("div");
+  div.className = isUser ? "chat-message user" : "chat-message assistant";
+  div.innerHTML = text;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function setReasoning(text) {
+  if (!reasoningContent) return;
+  reasoningContent.innerHTML = text;
+  if (reasoningBox) {
+    reasoningBox.style.display = text ? "block" : "none";
+  }
+}
+
+async function sendChatMessage() {
+  if (!chatInput) return;
+  const prompt = chatInput.value.trim();
+  if (!prompt) return;
+
+  chatInput.disabled = true;
+  if (sendChatBtn) sendChatBtn.disabled = true;
+
+  appendChatMessage(esc(prompt), true);
+  chatInput.value = "";
+  setReasoning("");
+
+  try {
+    const sessionId = localStorage.getItem("chatSessionId") || crypto.randomUUID();
+    localStorage.setItem("chatSessionId", sessionId);
+
+    const response = await fetch("/api/llm/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: prompt,
+        session_id: sessionId,
+        show_reasoning: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let assistantMessage = "";
+    let reasoningText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6);
+          if (dataStr === "[DONE]") continue;
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.type === "reasoning") {
+              reasoningText += data.content;
+              setReasoning(reasoningText);
+            } else if (data.type === "reasoning_done") {
+              // keep visible
+            } else if (data.type === "response") {
+              assistantMessage += data.content;
+              const lastMsg = chatMessages.lastElementChild;
+              if (lastMsg && lastMsg.className === "chat-message assistant") {
+                lastMsg.innerHTML = assistantMessage;
+              } else {
+                appendChatMessage(assistantMessage, false);
+              }
+            } else if (data.type === "error") {
+              appendChatMessage(`❌ Error: ${data.content}`, false);
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+    }
+
+    if (!assistantMessage) {
+      appendChatMessage("No response received.", false);
+    }
+
+  } catch (err) {
+    console.error("Chat error:", err);
+    appendChatMessage(`❌ Error: ${err.message}`, false);
+  } finally {
+    chatInput.disabled = false;
+    if (sendChatBtn) sendChatBtn.disabled = false;
+    chatInput.focus();
+  }
 }
 
 // ── Load History ──────────────────────────────────────────
@@ -127,8 +255,14 @@ async function loadScan(scanId) {
   }
 }
 
-// ── Main Scan Function (UPDATED: debug logs, timeout, safe rendering) ──
+// ── Main Scan Function (UPDATED: 30-minute timeout + scan lock) ──
 async function startScan() {
+  // ── Prevent multiple simultaneous scans ──
+  if (_scanRunning) {
+    log("Scan already in progress. Please wait.", "error");
+    return;
+  }
+
   let rawUrl = urlInput.value.trim();
   if (!rawUrl) { urlInput.focus(); return; }
 
@@ -148,6 +282,7 @@ async function startScan() {
   if (resultsGrid) resultsGrid.style.display = "none";
   if (scanBtn) scanBtn.disabled = true;
 
+  _scanRunning = true;
   setStatus("active", "SCANNING...");
 
   log(`Target: ${targetUrl}`);
@@ -156,9 +291,12 @@ async function startScan() {
   log("Running engine modules in parallel...");
 
   try {
-    // 10-minute timeout
+    // ── TIMEOUT INCREASED TO 30 MINUTES (1,800,000 ms) ──
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 600000);
+    const timeoutId = setTimeout(() => {
+      console.log("[startScan] 30-minute timeout reached, aborting.");
+      controller.abort();
+    }, 1800000);
 
     const response = await fetch("/api/scan", {
       method: "POST",
@@ -181,7 +319,6 @@ async function startScan() {
 
     const data = await response.json();
 
-    // ── DEBUG: Log the full response ──
     console.log("[startScan] Full scan data received:", data);
     console.log("[startScan] scan_id:", data.scan_id);
     console.log("[startScan] Keys:", Object.keys(data));
@@ -191,7 +328,6 @@ async function startScan() {
 
     if (resultsGrid) resultsGrid.style.display = "grid";
 
-    // ── Render all sections safely ──
     if (data.ssl) renderSSL(data.ssl);
     if (data.security_headers) renderSecurity(data.security_headers);
     if (data.ports) renderPorts(data.ports);
@@ -217,13 +353,15 @@ async function startScan() {
 
   } catch (err) {
     if (err.name === "AbortError") {
-      log("Scan timed out after 10 minutes.", "error");
+      log("Scan timed out after 30 minutes.", "error");
+      setStatus("error", "TIMEOUT");
     } else {
       log(`Error: ${err.message}`, "error");
+      setStatus("error", "ERROR");
     }
-    setStatus("error", "ERROR");
     console.error("[startScan] Error:", err);
   } finally {
+    _scanRunning = false;
     if (scanBtn) scanBtn.disabled = false;
   }
 }
@@ -497,7 +635,6 @@ function renderSubdomains(data) {
   const status = document.getElementById("subdomainStatus");
   if (!body) return;
 
-  // Graceful handling of missing or malformed data
   if (!data || data.error) {
     body.innerHTML = `<p class="no-data">Subdomain discovery failed: ${data ? data.error : 'No data'}</p>`;
     if (status) status.textContent = "Failed";
@@ -514,7 +651,6 @@ function renderSubdomains(data) {
     return;
   }
 
-  // Build table — handles missing fields gracefully with N/A fallback
   let html = `
     <div style="overflow-x: auto;">
     <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
@@ -532,13 +668,11 @@ function renderSubdomains(data) {
   `;
 
   subdomains.forEach((sd, index) => {
-    // All fields use N/A fallback — no TypeError possible
     const subdomain = sd.subdomain || sd.name || "Unknown";
     const ip = sd.ip || sd.ip_address || "N/A";
     const statusCode = sd.http_status || sd.status_code || "N/A";
     const rowBg = index % 2 === 0 ? "#050807" : "#080d0b";
 
-    // Status code color
     let statusColor = "#6a8070";
     if (statusCode !== "N/A") {
       const code = parseInt(statusCode);
@@ -547,7 +681,6 @@ function renderSubdomains(data) {
       else if (code >= 400) statusColor = "#ff4444";
     }
 
-    // Technologies — safe check
     let techHtml = '<span style="color: #6a8070;">N/A</span>';
     if (sd.technologies && Array.isArray(sd.technologies) && sd.technologies.length > 0) {
       techHtml = sd.technologies.slice(0, 3).map(t =>
@@ -555,7 +688,6 @@ function renderSubdomains(data) {
       ).join(" ");
     }
 
-    // Open ports — safe check
     let portsHtml = '<span style="color: #6a8070;">N/A</span>';
     if (sd.open_ports && Array.isArray(sd.open_ports) && sd.open_ports.length > 0) {
       portsHtml = sd.open_ports.slice(0, 5).map(p => {
@@ -564,7 +696,6 @@ function renderSubdomains(data) {
       }).join(" ");
     }
 
-    // Screenshot — safe check
     let screenshotHtml = '<span style="color: #6a8070;">N/A</span>';
     if (sd.screenshot) {
       screenshotHtml = `<a href="/static/${esc(sd.screenshot)}" target="_blank" rel="noopener">

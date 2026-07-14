@@ -25,7 +25,7 @@ def analyze_security_headers(url: str) -> Dict:
     """
     try:
         url = normalize_url(url)
-        response = requests.get(url, timeout=10, allow_redirects=True)
+        response = requests.get(url, timeout=30, allow_redirects=True)  # ← timeout 30
         headers = {k.lower(): v for k, v in response.headers.items()}
 
         important_headers = {

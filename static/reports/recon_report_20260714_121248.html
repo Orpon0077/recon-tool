@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recon Report — https://axiler.xyz</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .report-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .report-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.05em;
+        }
+        .report-header .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 16px;
+        }
+        .report-header .meta {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .report-header .meta-item {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        .report-body {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #0f3460;
+        }
+        .section h2 {
+            font-size: 1.2rem;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.88rem;
+        }
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            word-break: break-word;
+        }
+        tr:hover td {
+            background: #f8f9fa;
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        .error {
+            color: #ff4444;
+            font-style: italic;
+        }
+        ul { padding-left: 20px; margin: 8px 0; }
+        li { margin: 4px 0; }
+        .print-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #0f3460;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+        .print-btn:hover { background: #16213e; transform: translateY(-2px); }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .summary-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f3460;
+        }
+        .summary-card .label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        @media print {
+            .print-btn { display: none; }
+            body { background: white; }
+            .section { box-shadow: none; border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <h1>🔍 Web Reconnaissance Report</h1>
+        <div class="subtitle">Security Analysis Report</div>
+        <div class="meta">
+            <div class="meta-item">🎯 Target: <strong>https://axiler.xyz</strong></div>
+            <div class="meta-item">📅 Generated: <strong>2026-07-14 12:12:48</strong></div>
+            <div class="meta-item">🛠️ Tool: <strong>RECON Dashboard</strong></div>
+        </div>
+    </div>
+
+    <div class="report-body">
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="number">4</div>
+                <div class="label">Open Ports</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">139</div>
+                <div class="label">Subdomains</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">1</div>
+                <div class="label">Technologies</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">0</div>
+                <div class="label">Endpoints</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">33/100</div>
+                <div class="label">Security Score</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">YES</div>
+                <div class="label">WAF Detected</div>
+            </div>
+        </div>
+
+        
+        <div class="section">
+            <h2>🔒 SSL/TLS Analysis</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Issued To</td><td>axiler.xyz</td></tr>
+                <tr><td>Issued By</td><td>Let's Encrypt</td></tr>
+                <tr><td>Valid From</td><td>May 22 06:08:09 2026 GMT</td></tr>
+                <tr><td>Valid Until</td><td>Aug 20 06:08:08 2026 GMT</td></tr>
+                <tr><td>Days Remaining</td><td style="color:#00aa55; font-weight:bold;">36</td></tr>
+                <tr><td>Expired</td><td style="color:#00aa55; font-weight:bold;">NO ✓</td></tr>
+            </table>
+        </div>
+        
+        
+        <div class="section">
+            <h2>🛡️ Security Headers</h2>
+            <div class="score-badge" style="background:#ff4444;">Security Score: 33/100</div>
+            <table>
+                <tr><th>Header</th><th>Value / Status</th></tr>
+                <tr><td style="color:#00aa55;">✓ x-frame-options</td><td>SAMEORIGIN</td></tr><tr><td style="color:#00aa55;">✓ referrer-policy</td><td>same-origin</td></tr>
+                <tr><td style="color:#ff4444;">✗ strict-transport-security</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ content-security-policy</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ x-content-type-options</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ permissions-policy</td><td style="color:#ff4444;">MISSING</td></tr>
+            </table>
+        </div>
+        
+        
+            <div class="section">
+                <h2>🔍 Port Scanning</h2>
+                <p>Total open ports: <strong>4</strong></p>
+                <table>
+                    <tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr>
+                    <tr><td style="font-weight:bold;">8080</td><td>HTTP-Alt</td><td style="color:#00aa55;">OPEN</td><td>Unknown</td></tr><tr><td style="font-weight:bold;">443</td><td>HTTPS</td><td style="color:#00aa55;">OPEN</td><td>Unknown</td></tr><tr><td style="font-weight:bold;">8443</td><td>HTTPS-Alt</td><td style="color:#00aa55;">OPEN</td><td>Unknown</td></tr><tr><td style="font-weight:bold;">80</td><td>HTTP</td><td style="color:#00aa55;">OPEN</td><td>Unknown</td></tr>
+                </table>
+            </div>
+            
+        
+        <div class="section">
+            <h2>🔥 Firewall / WAF Detection</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Detected</td><td style="color:#ff4444; font-weight:bold;">YES ⚠️</td></tr>
+                <tr><td>Firewall Name</td><td>Cloudflare</td></tr>
+                <tr><td>Evidence</td><td>Found signature 'cf-ray'</td></tr>
+            </table>
+        </div>
+        
+        
+            <div class="section">
+                <h2>⚙️ Technology Detection</h2>
+                <p>Total technologies found: <strong>1</strong></p>
+                <table>
+                    <tr><th>Category</th><th>Technologies</th></tr>
+                    <tr><td style="font-weight:bold;">CDN</td><td>Cloudflare</td></tr>
+                </table>
+            </div>
+            
+        <div class="section"><h2>🕷️ Crawling / Endpoint Discovery</h2><p>No endpoints found.</p></div>
+        
+            <div class="section">
+                <h2>🌐 Subdomain Discovery</h2>
+                <p>Total subdomains found: <strong>139</strong></p>
+                <table>
+                    <tr><th>Subdomain</th><th>IP Address</th></tr>
+                    <tr><td>a1.axiler.xyz</td><td>unresolved</td></tr><tr><td>a7.axiler.xyz</td><td>18.144.217.191</td></tr><tr><td>a9.axiler.xyz</td><td>18.144.217.191</td></tr><tr><td>addiesoft.axiler.xyz</td><td>unresolved</td></tr><tr><td>apicheck.axiler.xyz</td><td>52.53.229.233</td></tr><tr><td>app-sit.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>app.axiler.xyz</td><td>unresolved</td></tr><tr><td>ashanaur.axiler.xyz</td><td>unresolved</td></tr><tr><td>ashdash.axiler.xyz</td><td>44.248.65.43</td></tr><tr><td>ashfour.axiler.xyz</td><td>44.248.65.43</td></tr><tr><td>ashone.axiler.xyz</td><td>44.248.65.43</td></tr><tr><td>ashthree.axiler.xyz</td><td>44.248.65.43</td></tr><tr><td>ashtwo.axiler.xyz</td><td>44.248.65.43</td></tr><tr><td>athena.axiler.xyz</td><td>3.101.89.254</td></tr><tr><td>athone.axiler.xyz</td><td>3.101.89.254</td></tr><tr><td>athtwo.axiler.xyz</td><td>3.101.89.254</td></tr><tr><td>autotest.axiler.xyz</td><td>unresolved</td></tr><tr><td>axiler.xyz</td><td>172.67.163.173</td></tr><tr><td>axilerdemo.axiler.xyz</td><td>unresolved</td></tr><tr><td>axilertest.axiler.xyz</td><td>unresolved</td></tr><tr><td>axion.axiler.xyz</td><td>52.66.127.69</td></tr><tr><td>axishop.axiler.xyz</td><td>unresolved</td></tr><tr><td>b1.axiler.xyz</td><td>18.144.217.191</td></tr><tr><td>blog.axiler.xyz</td><td>unresolved</td></tr><tr><td>cadedash.axiler.xyz</td><td>54.235.56.197</td></tr><tr><td>cadedashboard.axiler.xyz</td><td>unresolved</td></tr><tr><td>cadeone.axiler.xyz</td><td>52.87.250.129</td></tr><tr><td>cadetest.axiler.xyz</td><td>unresolved</td></tr><tr><td>cadethree.axiler.xyz</td><td>52.87.250.129</td></tr><tr><td>cadetwo.axiler.xyz</td><td>52.87.250.129</td></tr><tr><td>cadewaf.axiler.xyz</td><td>unresolved</td></tr><tr><td>coba.axiler.xyz</td><td>18.144.217.191</td></tr><tr><td>concdash.axiler.xyz</td><td>unresolved</td></tr><tr><td>conctest.axiler.xyz</td><td>unresolved</td></tr><tr><td>corzone.axiler.xyz</td><td>13.206.110.127</td></tr><tr><td>corztwo.axiler.xyz</td><td>unresolved</td></tr><tr><td>corzworld.axiler.xyz</td><td>13.206.110.127</td></tr><tr><td>crapitest.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>ctest.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>daga.axiler.xyz</td><td>184.32.244.78</td></tr><tr><td>dash.axiler.xyz</td><td>54.177.170.117</td></tr><tr><td>dash1.axiler.xyz</td><td>18.144.217.191</td></tr><tr><td>dast.axiler.xyz</td><td>13.204.67.16</td></tr><tr><td>dbbl-dash.axiler.xyz</td><td>unresolved</td></tr><tr><td>dbbl-poc1.axiler.xyz</td><td>unresolved</td></tr><tr><td>dbbl-poc2.axiler.xyz</td><td>unresolved</td></tr><tr><td>dcheck.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>dekko.axiler.xyz</td><td>unresolved</td></tr><tr><td>dekkoisho.axiler.xyz</td><td>unresolved</td></tr><tr><td>demo.axiler.xyz</td><td>unresolved</td></tr><tr><td>demodash.axiler.xyz</td><td>unresolved</td></tr><tr><td>demotest.axiler.xyz</td><td>unresolved</td></tr><tr><td>devone.axiler.xyz</td><td>54.183.56.88</td></tr><tr><td>devtest.axiler.xyz</td><td>54.183.56.88</td></tr><tr><td>devtwo.axiler.xyz</td><td>54.183.56.88</td></tr><tr><td>dtest.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>dvwatest.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>emon-pro.axiler.xyz</td><td>unresolved</td></tr><tr><td>faisal.axiler.xyz</td><td>unresolved</td></tr><tr><td>fortiwaf.axiler.xyz</td><td>unresolved</td></tr><tr><td>ftest.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>hello.axiler.xyz</td><td>54.177.170.117</td></tr><tr><td>helloworld.axiler.xyz</td><td>unresolved</td></tr><tr><td>hey.axiler.xyz</td><td>52.53.225.73</td></tr><tr><td>hi.axiler.xyz</td><td>54.177.170.117</td></tr><tr><td>juicetestapi.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>kc-test.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>kc-test2.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>laga.axiler.xyz</td><td>184.32.244.78</td></tr><tr><td>lb-test.axiler.xyz</td><td>3.101.104.3</td></tr><tr><td>lb-two.axiler.xyz</td><td>3.101.104.3</td></tr><tr><td>loc.axiler.xyz</td><td>18.246.39.236</td></tr><tr><td>logtest.axiler.xyz</td><td>unresolved</td></tr><tr><td>maga.axiler.xyz</td><td>184.32.244.78</td></tr><tr><td>maruf.axiler.xyz</td><td>unresolved</td></tr><tr><td>maruftest.axiler.xyz</td><td>unresolved</td></tr><tr><td>masbapoc.axiler.xyz</td><td>unresolved</td></tr><tr><td>mdash.axiler.xyz</td><td>3.101.104.3</td></tr><tr><td>mehedi.axiler.xyz</td><td>unresolved</td></tr><tr><td>minhaaz.axiler.xyz</td><td>unresolved</td></tr><tr><td>minhaz.axiler.xyz</td><td>unresolved</td></tr><tr><td>mintest.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>mltest.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>mr-test.axiler.xyz</td><td>18.145.194.196</td></tr><tr><td>mredol-demo.axiler.xyz</td><td>unresolved</td></tr><tr><td>mredolnew.axiler.xyz</td><td>unresolved</td></tr><tr><td>mredolpoc.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>mredolstage.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>mredoltest.axiler.xyz</td><td>18.145.189.128</td></tr><tr><td>mrtest.axiler.xyz</td><td>52.53.225.73</td></tr><tr><td>mtest.axiler.xyz</td><td>unresolved</td></tr><tr><td>mtestone.axiler.xyz</td><td>3.101.104.3</td></tr><tr><td>mtestthree.axiler.xyz</td><td>3.101.104.3</td></tr><tr><td>mtesttwo.axiler.xyz</td><td>3.101.104.3</td></tr><tr><td>multi.axiler.xyz</td><td>unresolved</td></tr><tr><td>multidash.axiler.xyz</td><td>unresolved</td></tr><tr><td>multitest.axiler.xyz</td><td>unresolved</td></tr><tr><td>naafco.axiler.xyz</td><td>unresolved</td></tr><tr><td>newtest.axiler.xyz</td><td>unresolved</td></tr><tr><td>phyone.axiler.xyz</td><td>unresolved</td></tr>
+                </table>
+            </div>
+            
+        <div class="section"><h2>📜 JavaScript Analysis</h2><p class="error">Error: No data</p></div>
+        
+            <div class="section">
+                <h2>📸 Screenshot</h2>
+                <img src="/screenshots/axiler.xyz_20260714_120958.png" alt="Screenshot of https://axiler.xyz" style="max-width:100%; border:1px solid #ddd; border-radius:4px;">
+            </div>
+            
+    </div>
+
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+</body>
+</html>

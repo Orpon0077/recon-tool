@@ -26,12 +26,10 @@ from app.database.db import get_scan_by_id, save_scan
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 
-
 class ChatRequest(BaseModel):
     prompt: str
     session_id: Optional[str] = None
     show_reasoning: bool = True
-
 
 class ChatResponse(BaseModel):
     response: str
@@ -40,10 +38,8 @@ class ChatResponse(BaseModel):
     scan_id: Optional[str] = None
     reasoning: Optional[str] = None
 
-
 conversations = {}
 conversation_history = {}
-
 
 def get_session_context(session_id: str) -> dict:
     if session_id not in conversation_history:
@@ -59,7 +55,6 @@ def get_session_context(session_id: str) -> dict:
         }
     return conversation_history[session_id]
 
-
 def update_session_context(session_id: str, action: str, target: str, scan_data: str, scan_id: str = None, full_result: dict = None):
     ctx = get_session_context(session_id)
     ctx["last_action"] = action
@@ -69,7 +64,6 @@ def update_session_context(session_id: str, action: str, target: str, scan_data:
         ctx["last_scan_id"] = scan_id
     if full_result:
         ctx["last_full_result"] = full_result
-
 
 def extract_domain(prompt: str) -> Optional[str]:
     url_match = re.search(
@@ -91,9 +85,7 @@ def extract_domain(prompt: str) -> Optional[str]:
         }
         if candidate.lower() not in skip_words:
             return candidate
-
     return None
-
 
 def detect_scan_intent(prompt: str, context: dict = None) -> Optional[dict]:
     p = prompt.lower()
@@ -113,8 +105,16 @@ def detect_scan_intent(prompt: str, context: dict = None) -> Optional[dict]:
     if not domain:
         return None
 
+    js_keywords = [
+        "js", "javascript", "java script", "js files", "javascript files",
+        "scan js", "js analysis", "javascript analysis",
+        "find js", "javascript scanner"
+    ]
+    if any(kw in p for kw in js_keywords):
+        print(f"[LLM_ROUTER] JS request detected for domain: {domain}")
+        return {"action": "js", "target": domain}
+
     module_keywords = {
-        "js": ["js", "javascript", "js files", "api key", "js analysis", "javascript analysis"],
         "subdomain": ["subdomain", "sub domains", "dns enum", "subdomain discovery"],
         "crawl": ["crawl", "crawling", "endpoint", "endpoints", "find urls", "discover urls", "find pages"],
         "tech": ["tech", "technology", "technologies", "stack", "built with", "framework", "cms"],
@@ -144,7 +144,6 @@ def detect_scan_intent(prompt: str, context: dict = None) -> Optional[dict]:
 
     return None
 
-
 def is_follow_up_request(prompt: str) -> bool:
     p = prompt.lower()
     follow_up_keywords = [
@@ -153,6 +152,114 @@ def is_follow_up_request(prompt: str) -> bool:
     ]
     return any(keyword in p for keyword in follow_up_keywords)
 
+def is_question(prompt: str) -> bool:
+    question_words = ["what", "which", "how", "is", "are", "who", "when", "why", "where", "does", "do", "can", "will"]
+    prompt_lower = prompt.lower()
+    return "?" in prompt or any(word in prompt_lower.split() for word in question_words)
+
+def is_list_request(prompt: str) -> bool:
+    list_keywords = ["list", "show", "output", "display", "give me", "show me"]
+    prompt_lower = prompt.lower()
+    return any(kw in prompt_lower for kw in list_keywords)
+
+def clean_reasoning_from_response(text: str) -> str:
+    # (keep your existing clean function – unchanged)
+    lines = text.split('\n')
+    cleaned = []
+    reasoning_patterns = [
+        r'^step\s*\d+', r'^reasoning', r'^thinking',
+        r'^i will', r'^let me', r'^based on', r'^according to',
+        r'^my analysis', r'^the user asked', r'^i performed',
+        r'^here is', r'^output the following', r'^your entire response',
+        r'^do not add', r'^if the data', r'^be helpful',
+        r'^to answer', r'^first,', r'^second,', r'^next,',
+        r'^finally,', r'^in summary', r'^overview',
+        r'^thinking process', r'^reasoning process', r'^chain of thought',
+        r'^i will now', r'^let me think', r'^my thought process',
+        r'^internal analysis', r'^step by step', r'^here are',
+        r'^i can see', r'^i notice', r'^the data shows',
+        r'^from the scan', r'^the results indicate',
+        r'^i have analyzed', r'^i will provide',
+        r'^as you can see', r'^it seems that',
+        r'^the scan reveals', r'^this suggests',
+        r'^in the data', r'^based on the data',
+        r'^i found', r'^i discovered', r'^i identified',
+        r'^going through', r'^looking at',
+        r'^my recommendation', r'^i suggest',
+        r'^the following', r'^below are',
+        r'^checking the', r'^examining the',
+        r'^i will list', r'^i will show',
+        r'^let\'s', r'^lets', r'^we can',
+        r'^you can see', r'^please note',
+        r'^i should mention', r'^i think',
+        r'^i believe', r'^in my opinion',
+        r'^refined', r'^wait', r'^actually', r'^looking at',
+        r'^re-evaluating', r'^strategy', r'^check constraints',
+        r'^if i', r'^however', r'^since the user',
+        r'^the input', r'^the provided', r'^the data provided',
+        r'^\*', r'^refining strategy', r'^wait,', r'^actually,',
+        r'^let\'s look', r'^since i don\'t have', r'^i should',
+        r'^i will', r'^if i follow', r'^the user is', r'^contextual data',
+        r'^refined strategy', r'^considering that', r'^given that',
+        r'^note that', r'^the prompt also says', r'^the instruction says',
+        r'^i have', r'^since the user', r'^to answer', r'^i\'ll', r'^i\'m',
+        r'^i am', r'^what i', r'^the best', r'^one way', r'^another way',
+        r'^instead', r'^rather than', r'^however,', r'^therefore,',
+        r'^thus,', r'^so,', r'^in that case', r'^the key', r'^my goal',
+        r'^ultimately', r'^in essence', r'^to summarize', r'^in short',
+        r'^all in all', r'^looking at the', r'^based on the',
+        r'^the scan shows', r'^i see', r'^i notice that',
+        r'^the user wants', r'^the raw data', r'^wait, looking',
+        r'^port scan:', r'^subdomains:', r'^tech:', r'^ssl:',
+        r'^security headers:', r'^firewall:', r'^found \d+',
+        r'^\- \(the specific', r'^since the specific',
+        r'^i might have to', r'^but usually,',
+        r'^this is a summary', r'^if i don\'t have',
+        r'^i can\'t fill', r'^i will represent',
+        r'^port scan section', r'^subdomain section',
+        r'^technology section', r'^ssl section',
+        r'^security headers section', r'^firewall section',
+        r'^found \d+ open ports', r'^subdomains:', r'^techs:',
+        r'^ssl:', r'^security score:', r'^endpoints:',
+        r'^firewall:', r'^refining approach', r'^correction:',
+        r'^let\'s check', r'^if the data is missing',
+        r'^i should still', r'^wait\s*\*', r'^\s*\*wait',
+        r'^refining the content', r'^actually, if i have',
+        r'^since i don\'t know', r'^i don\'t have',
+    ]
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        skip = False
+        for pattern in reasoning_patterns:
+            if re.search(pattern, stripped, re.IGNORECASE):
+                skip = True
+                break
+        if not skip:
+            cleaned.append(line)
+    if not cleaned:
+        return text
+    return '\n'.join(cleaned)
+
+def extract_answer_from_llm_response(raw: str) -> str:
+    if "### ANSWER" in raw:
+        parts = raw.split("### ANSWER")
+        if len(parts) > 1:
+            answer_part = parts[1].strip()
+            cleaned = clean_reasoning_from_response(answer_part)
+            if cleaned:
+                return cleaned
+            return answer_part
+    # Fallback: clean the whole response
+    return clean_reasoning_from_response(raw)
+
+def extract_reasoning_from_llm_response(raw: str) -> str:
+    if "### REASONING" in raw and "### ANSWER" in raw:
+        start = raw.find("### REASONING") + len("### REASONING")
+        end = raw.find("### ANSWER")
+        return raw[start:end].strip()
+    return ""
 
 def safe_result(result: Any) -> Any:
     if isinstance(result, Exception):
@@ -164,7 +271,6 @@ def safe_result(result: Any) -> Any:
     if result is None:
         return {"error": "No data returned"}
     return result
-
 
 async def execute_scan(action: str, domain: str) -> dict:
     try:
@@ -235,7 +341,7 @@ async def execute_scan(action: str, domain: str) -> dict:
             result = await asyncio.to_thread(scan_javascript, url)
             if result is None:
                 result = {"error": "JS scanner returned no data"}
-            elif isinstance(result, dict) and not result.get("total") and not result.get("error"):
+            elif isinstance(result, dict) and not result.get("total_js_files") and not result.get("error"):
                 result["error"] = "No JavaScript files found or scan produced no data"
             return {"type": "js", "target": domain, "data": safe_result(result), "url": url}
 
@@ -244,7 +350,6 @@ async def execute_scan(action: str, domain: str) -> dict:
 
     except Exception as e:
         return {"type": "error", "target": domain, "data": None, "error": str(e), "url": url}
-
 
 def format_scan_results(scan_results: dict) -> str:
     if not scan_results:
@@ -280,11 +385,9 @@ def format_scan_results(scan_results: dict) -> str:
         subs = data.get("subdomains", [])
         total = data.get("total_found", len(subs))
         if subs:
-            display_subs = subs[:20]
-            lines = [f"  {s.get('subdomain','')} -> {s.get('ip','unknown')}" for s in display_subs]
-            if len(subs) > 20:
-                lines.append(f"  ... and {len(subs)-20} more subdomains")
-            return f"SUBDOMAIN DISCOVERY — {target}\nTotal subdomains found: {total}\n" + "\n".join(lines)
+            # ── SHOW ALL SUBDOMAINS (no truncation) ──
+            lines = [f"  {s.get('subdomain','')} -> {s.get('ip','unknown')}" for s in subs]
+            return f"SUBDOMAIN DISCOVERY — {target}\nTotal subdomains found: {len(subs)}\n" + "\n".join(lines)
         return f"SUBDOMAIN DISCOVERY — {target}\nNo subdomains found."
 
     elif scan_type == "tech":
@@ -357,7 +460,6 @@ def format_scan_results(scan_results: dict) -> str:
         data = scan_results.get("data", {})
         if not data or not isinstance(data, dict):
             return f"JS ANALYSIS — {target}\n  No data available."
-
         if data.get("error"):
             return f"JS ANALYSIS — {target}\n  Error: {data['error']}"
 
@@ -400,48 +502,119 @@ def format_scan_results(scan_results: dict) -> str:
 
     elif scan_type == "full_scan":
         parts = [f"FULL SCAN — {target}"]
+
         p = scan_results.get("ports")
         if p and isinstance(p, dict):
             ports = p.get("open_ports", [])
-            parts.append(f"  Ports: {len(ports)} open")
+            if ports:
+                parts.append(f"\nPORT SCAN:\nFound {len(ports)} open ports:")
+                for port in ports[:30]:
+                    parts.append(f"  - Port {port.get('port', '?')} | {port.get('service', 'unknown')} | {port.get('state', 'open')} | version: {port.get('version', 'unknown')}")
+                if len(ports) > 30:
+                    parts.append(f"  ... and {len(ports)-30} more ports")
+            else:
+                parts.append("\nPORT SCAN:\nNo open ports found.")
+
         s = scan_results.get("subdomains")
         if s and isinstance(s, dict):
-            total = s.get("total_found", 0)
-            parts.append(f"  Subdomains: {total} found")
+            subs = s.get("subdomains", [])
+            if subs:
+                parts.append(f"\nSUBDOMAIN DISCOVERY:\nFound {len(subs)} subdomains:")
+                for sub in subs[:30]:
+                    parts.append(f"  - {sub.get('subdomain', 'unknown')} -> {sub.get('ip', 'unknown')}")
+                if len(subs) > 30:
+                    parts.append(f"  ... and {len(subs)-30} more subdomains")
+            else:
+                parts.append("\nSUBDOMAIN DISCOVERY:\nNo subdomains found.")
+
         t = scan_results.get("tech")
         if t and isinstance(t, dict):
             techs = t.get("technologies", {})
-            total = sum(len(v) for v in techs.values()) if techs else 0
-            parts.append(f"  Technologies: {total} found")
+            if techs:
+                parts.append("\nTECHNOLOGY DETECTION:")
+                for cat, items in techs.items():
+                    parts.append(f"  {cat}: {', '.join(items)}")
+            else:
+                parts.append("\nTECHNOLOGY DETECTION:\nNo technologies detected.")
+
         ssl = scan_results.get("ssl")
         if ssl and isinstance(ssl, dict):
-            days = ssl.get("days_remaining", "unknown")
-            parts.append(f"  SSL: {days} days remaining")
+            parts.append(f"\nSSL ANALYSIS:")
+            parts.append(f"  - Issued To: {ssl.get('issued_to', 'unknown')}")
+            parts.append(f"  - Issued By: {ssl.get('issued_by', 'unknown')}")
+            parts.append(f"  - Valid From: {ssl.get('valid_from', 'unknown')}")
+            parts.append(f"  - Valid Until: {ssl.get('valid_until', 'unknown')}")
+            parts.append(f"  - Days Remaining: {ssl.get('days_remaining', 'unknown')}")
+            parts.append(f"  - Expired: {'YES' if ssl.get('is_expired') else 'NO'}")
+
         h = scan_results.get("headers")
         if h and isinstance(h, dict):
+            present = h.get("present", {})
+            missing = h.get("missing", [])
             score = h.get("score", 0)
-            parts.append(f"  Security headers score: {score}/100")
+            parts.append(f"\nSECURITY HEADERS — Score: {score}/100")
+            if present:
+                parts.append("  Present (✓):")
+                for header, value in present.items():
+                    parts.append(f"    - {header}: {value[:80]}")
+            if missing:
+                parts.append("  Missing (✗):")
+                for header in missing:
+                    parts.append(f"    - {header}")
+
         c = scan_results.get("crawl")
         if c and isinstance(c, dict):
             endpoints = c.get("endpoints", [])
-            parts.append(f"  Endpoints crawled: {len(endpoints)}")
+            if endpoints:
+                parts.append(f"\nCRAWL:\nFound {len(endpoints)} endpoints:")
+                for ep in endpoints[:30]:
+                    parts.append(f"  - {ep.get('url', 'unknown')} | {ep.get('method', 'GET')} | {ep.get('status_code', '?')} | {ep.get('content_type', '')}")
+                if len(endpoints) > 30:
+                    parts.append(f"  ... and {len(endpoints)-30} more endpoints")
+            else:
+                parts.append("\nCRAWL:\nNo endpoints found.")
+
         fw = scan_results.get("firewall")
         if fw and isinstance(fw, dict):
-            if fw.get("detected"):
-                parts.append(f"  Firewall: {fw.get('firewall_name', 'Detected')}")
-            else:
-                parts.append("  Firewall: Not detected")
+            parts.append(f"\nFIREWALL DETECTION:")
+            parts.append(f"  - Detected: {'YES' if fw.get('detected') else 'NO'}")
+            if fw.get('detected'):
+                parts.append(f"  - Firewall: {fw.get('firewall_name', 'Unknown')}")
+                parts.append(f"  - Evidence: {fw.get('evidence', 'unknown')}")
+
         js = scan_results.get("js")
         if js and isinstance(js, dict):
-            total = js.get("total", 0)
-            parts.append(f"  JS files analyzed: {total}")
+            total_js = js.get("total_js_files", js.get("total", 0))
+            js_files = js.get("js_files", js.get("files", []))
+            emails = js.get("emails", [])
+            api_endpoints = js.get("api_endpoints", [])
+            internal_paths = js.get("internal_paths", [])
+            vulnerabilities = js.get("vulnerabilities", [])
+
+            parts.append(f"\nJAVASCRIPT ANALYSIS:")
+            parts.append(f"  - Total JS files found: {total_js}")
+            if js_files:
+                parts.append(f"  - JS Files (first 5):")
+                for f in js_files[:5]:
+                    url_str = f.get('url', str(f)) if isinstance(f, dict) else str(f)
+                    parts.append(f"    - {url_str}")
+                if len(js_files) > 5:
+                    parts.append(f"    ... and {len(js_files)-5} more")
+            if emails:
+                parts.append(f"  - Emails found: {', '.join(emails[:5])}")
+            if api_endpoints:
+                parts.append(f"  - API endpoints: {', '.join(api_endpoints[:5])}")
+            if internal_paths:
+                parts.append(f"  - Internal paths: {', '.join(internal_paths[:5])}")
+            if vulnerabilities:
+                parts.append(f"  - Potential issues: {len(vulnerabilities)} found")
+
         return "\n".join(parts)
 
     elif scan_type == "error":
         return f"SCAN ERROR — {target}\n  {scan_results.get('error', 'Unknown error')}"
 
     return "Scan completed but no data available."
-
 
 async def stream_response(messages: list, reasoning_prompt: str = None) -> AsyncGenerator[str, None]:
     try:
@@ -458,7 +631,17 @@ async def stream_response(messages: list, reasoning_prompt: str = None) -> Async
 
         result = await llm_provider.chat(messages)
         if result.get("success"):
-            response = result["response"].strip()
+            raw_response = result["response"].strip()
+
+            reasoning_part = extract_reasoning_from_llm_response(raw_response)
+            answer_part = extract_answer_from_llm_response(raw_response)
+
+            if reasoning_part and not reasoning_prompt:
+                yield f"data: {json.dumps({'type': 'reasoning', 'content': reasoning_part})}\n\n"
+                await asyncio.sleep(0.1)
+                yield f"data: {json.dumps({'type': 'reasoning_done'})}\n\n"
+
+            response = answer_part if answer_part else clean_reasoning_from_response(raw_response)
             if response:
                 lines = response.split('\n')
                 for line in lines:
@@ -470,9 +653,9 @@ async def stream_response(messages: list, reasoning_prompt: str = None) -> Async
             yield f"data: {json.dumps({'type': 'error', 'content': result.get('error', 'Unknown error')})}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
     except Exception as e:
         yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
@@ -480,8 +663,8 @@ async def chat_stream(request: ChatRequest):
     print("[LLM_ROUTER] Prompt:", request.prompt)
 
     session_id = request.session_id or str(uuid.uuid4())
-
     ctx = get_session_context(session_id)
+
     if session_id not in conversations:
         conversations[session_id] = []
 
@@ -490,14 +673,17 @@ async def chat_stream(request: ChatRequest):
     scan_intent = detect_scan_intent(request.prompt, ctx)
     scan_id = None
     scan_data = None
+    action = None
+    target = None
+    should_reason = False
 
     if scan_intent:
         action = scan_intent["action"]
         target = scan_intent["target"]
         print(f"[LLM_ROUTER] Scan intent: {action} on {target}")
 
-        # --- PDF Generation (direct response, no LLM) ---
         if action == "generate_report":
+            # (keep your existing PDF generation code – unchanged)
             scan_id = ctx.get("last_scan_id")
             full_result = ctx.get("last_full_result")
 
@@ -506,7 +692,7 @@ async def chat_stream(request: ChatRequest):
                 try:
                     full_scan_result = await asyncio.wait_for(
                         execute_scan("full_scan", target),
-                        timeout=150
+                        timeout=300
                     )
                     if full_scan_result.get("type") == "error":
                         error_msg = f"❌ Full scan failed: {full_scan_result.get('error')}"
@@ -541,14 +727,12 @@ async def chat_stream(request: ChatRequest):
                     link_html = f'<b>📄 Download Report:</b> <a href="{download_url}" target="_blank" style="color: #00ff00; text-decoration: underline; font-weight: bold;">Download PDF</a>'
                     response_text = f"✅ PDF report generated successfully!\n\n{link_html}"
                     update_session_context(session_id, "generate_report", target, response_text, scan_id)
-
                     async def pdf_stream():
                         for line in response_text.split('\n'):
                             yield f"data: {json.dumps({'type': 'response', 'content': line + chr(10)})}\n\n"
                             await asyncio.sleep(0.05)
                         yield f"data: {json.dumps({'type': 'done'})}\n\n"
                     return StreamingResponse(pdf_stream(), media_type="text/event-stream")
-
                 except Exception as e:
                     error_msg = f"❌ Failed to generate PDF: {str(e)}"
                     async def error_stream():
@@ -562,11 +746,11 @@ async def chat_stream(request: ChatRequest):
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 return StreamingResponse(error_stream(), media_type="text/event-stream")
 
-        # --- Other scan actions ---
+        should_reason = True
         if action in ["subdomain", "full_scan"]:
-            scan_timeout = 150
+            scan_timeout = 300
         else:
-            scan_timeout = 90
+            scan_timeout = 180
 
         try:
             scan_results = await asyncio.wait_for(
@@ -592,121 +776,65 @@ async def chat_stream(request: ChatRequest):
             scan_data = ctx["last_scan_data"]
             scan_id = ctx.get("last_scan_id")
             print(f"[LLM_ROUTER] Follow-up detected, using previous {action} result for {target}")
+            should_reason = True
         else:
+            # Pure chat (no scan data) – send directly to LLM
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": request.prompt}
             ]
-            reasoning_prompt = None
-            if request.show_reasoning:
-                reasoning_prompt = f"User asked: '{request.prompt}'. Explain your reasoning for your response."
-
             return StreamingResponse(
-                stream_response(messages, reasoning_prompt),
+                stream_response(messages, None),
                 media_type="text/event-stream"
             )
 
-    # --- Build prompt that answers the user's original question ---
-    user_question = request.prompt
-    if action == "port_scan":
+    if not scan_data or scan_data.strip() == "No results available.":
+        scan_data = "No scan data available. Please run a scan first."
+
+    # ── CRITICAL DECISION: bypass LLM for list/show requests ──
+    if is_list_request(request.prompt):
+        # Directly return the formatted scan data – no LLM
+        print("[LLM_ROUTER] List/show request detected – returning raw data directly")
+        async def data_stream():
+            lines = scan_data.split('\n')
+            for line in lines:
+                yield f"data: {json.dumps({'type': 'response', 'content': line + chr(10)})}\n\n"
+                await asyncio.sleep(0.02)
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return StreamingResponse(data_stream(), media_type="text/event-stream")
+
+    # ── For questions, use LLM with a strict prompt ──
+    if is_question(request.prompt):
+        # Special case for WAF/firewall questions
+        if "waf" in request.prompt.lower() or "firewall" in request.prompt.lower():
+            llm_prompt = (
+                f"The user asked: '{request.prompt}'\n\n"
+                f"Here is the scan data from {target}:\n{scan_data}\n\n"
+                f"Extract the firewall/WAF name from the scan data and output ONLY the name. "
+                f"If the data says 'Firewall: Cloudflare', output 'Cloudflare'. "
+                f"Do not output any other text. Just the name. If the data does not contain a firewall name, say 'Not found'.\n\n"
+                f"Use this format:\n"
+                f"### REASONING\n(any brief reasoning)\n"
+                f"### ANSWER\n(the answer only)"
+            )
+        else:
+            llm_prompt = (
+                f"The user asked a question: '{request.prompt}'\n\n"
+                f"Here is the scan data from {target}:\n{scan_data}\n\n"
+                f"Based ONLY on the scan data above, answer the user's question directly and concisely. "
+                f"DO NOT output the full formatted templates (like 'Found X open ports...'). "
+                f"Just give the direct answer. For example, if the question is 'what WAF?', answer 'Cloudflare'.\n"
+                f"If the data does not contain the answer, say 'The scan data does not contain that information.'\n\n"
+                f"Use this format:\n"
+                f"### REASONING\n(any brief reasoning, if needed)\n"
+                f"### ANSWER\n(the answer only)"
+            )
+    else:
+        # Default: treat as a command – output formatted data (though this branch should not be reached for list/show)
         llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a port scan on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about open ports, services, or security risks, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "crawl":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a crawl on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about endpoints, hidden directories, or interesting URLs, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "subdomain":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a subdomain scan on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about subdomains, their IPs, or potential attack surfaces, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "js":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a JavaScript analysis on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about frameworks, API keys, emails, or internal paths, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "ssl":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed an SSL analysis on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about certificate validity, expiry, or issuer, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "headers":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a security headers analysis on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about missing headers or security score, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "firewall":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a firewall/WAF detection on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about WAF presence or protection level, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "tech":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a technology detection on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about frameworks, CMS, CDN, or tech stack, extract that information and explain it clearly. "
-            f"Be concise but thorough."
-        )
-    elif action == "screenshot":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I attempted to capture a screenshot of {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about the visual appearance or layout, describe what you see from the screenshot. "
-            f"Be concise but thorough."
-        )
-    else:  # full_scan
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a full scan on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"If the user asked about the overall security posture, technology stack, or interesting findings, extract that information and explain it clearly. "
-            f"Be concise but thorough."
+            f"The user requested: '{request.prompt}'\n\n"
+            f"Here is the scan data from {target}:\n{scan_data}\n\n"
+            f"Output the data exactly as provided, with no extra text."
         )
 
     messages = [
@@ -715,7 +843,7 @@ async def chat_stream(request: ChatRequest):
     ]
 
     reasoning_prompt = None
-    if request.show_reasoning:
+    if should_reason and request.show_reasoning:
         reasoning_prompt = f"User asked: '{request.prompt}'. I performed a {action} scan on {target}. Explain your reasoning for the analysis you're about to provide."
 
     return StreamingResponse(
@@ -723,16 +851,14 @@ async def chat_stream(request: ChatRequest):
         media_type="text/event-stream"
     )
 
-
 @router.post("/chat")
 async def chat(request: ChatRequest):
-    """Non-streaming chat endpoint with PDF support and direct answer"""
     print("[LLM_ROUTER] /chat endpoint hit!")
     print("[LLM_ROUTER] Prompt:", request.prompt)
 
     session_id = request.session_id or str(uuid.uuid4())
-
     ctx = get_session_context(session_id)
+
     if session_id not in conversations:
         conversations[session_id] = []
 
@@ -743,6 +869,9 @@ async def chat(request: ChatRequest):
     scan_id = None
     reasoning_text = ""
     scan_data = None
+    action = None
+    target = None
+    should_reason = False
 
     if scan_intent:
         action = scan_intent["action"]
@@ -750,6 +879,7 @@ async def chat(request: ChatRequest):
         print(f"[LLM_ROUTER] Scan intent: {action} on {target}")
 
         if action == "generate_report":
+            # (keep your existing PDF generation – unchanged)
             scan_id = ctx.get("last_scan_id")
             full_result = ctx.get("last_full_result")
 
@@ -758,7 +888,7 @@ async def chat(request: ChatRequest):
                 try:
                     full_scan_result = await asyncio.wait_for(
                         execute_scan("full_scan", target),
-                        timeout=150
+                        timeout=300
                     )
                     if full_scan_result.get("type") == "error":
                         response_text = f"❌ Full scan failed: {full_scan_result.get('error')}"
@@ -795,10 +925,11 @@ async def chat(request: ChatRequest):
                 reasoning=None,
             )
 
+        should_reason = True
         if action in ["subdomain", "full_scan"]:
-            scan_timeout = 150
+            scan_timeout = 300
         else:
-            scan_timeout = 90
+            scan_timeout = 180
 
         try:
             scan_results = await asyncio.wait_for(
@@ -824,27 +955,25 @@ async def chat(request: ChatRequest):
             scan_data = ctx["last_scan_data"]
             scan_id = ctx.get("last_scan_id")
             print(f"[LLM_ROUTER] Follow-up (non-stream) using previous {action} result for {target}")
+            should_reason = True
         else:
+            # Pure chat – send directly to LLM
             try:
                 messages = [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": request.prompt}
                 ]
-
-                if request.show_reasoning:
-                    reasoning_result = await llm_provider.chat([
-                        {"role": "system", "content": "You are a reasoning engine. Provide a brief step-by-step reasoning about how you will answer the user's question. Keep it concise and professional."},
-                        {"role": "user", "content": f"User asked: '{request.prompt}'. Explain your reasoning for your response."}
-                    ])
-                    if reasoning_result.get("success"):
-                        reasoning_text = reasoning_result["response"]
-
                 result = await asyncio.wait_for(
                     llm_provider.chat(messages),
                     timeout=240,
                 )
                 if result.get("success"):
-                    response_text = result["response"]
+                    raw_response = result["response"]
+                    reasoning_part = extract_reasoning_from_llm_response(raw_response)
+                    answer_part = extract_answer_from_llm_response(raw_response)
+                    if reasoning_part and request.show_reasoning:
+                        reasoning_text = reasoning_part
+                    response_text = answer_part if answer_part else clean_reasoning_from_response(raw_response)
                 else:
                     response_text = f"Error: {result.get('error', 'Unknown error')}"
             except asyncio.TimeoutError:
@@ -859,97 +988,49 @@ async def chat(request: ChatRequest):
                 reasoning=reasoning_text if request.show_reasoning else None,
             )
 
-    # Build prompt that answers the user's original question (same as streaming)
-    user_question = request.prompt
-    if action == "port_scan":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a port scan on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
+    if not scan_data or scan_data.strip() == "No results available.":
+        scan_data = "No scan data available. Please run a scan first."
+
+    # ── CRITICAL: bypass LLM for list/show requests ──
+    if is_list_request(request.prompt):
+        print("[LLM_ROUTER] List/show request detected – returning raw data directly")
+        return ChatResponse(
+            response=scan_data,
+            session_id=session_id,
+            provider="local",
+            scan_id=scan_id,
+            reasoning=None,
         )
-    elif action == "crawl":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a crawl on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
-    elif action == "subdomain":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a subdomain scan on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
-    elif action == "js":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a JavaScript analysis on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
-    elif action == "ssl":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed an SSL analysis on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
-    elif action == "headers":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a security headers analysis on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
-    elif action == "firewall":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a firewall/WAF detection on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
-    elif action == "tech":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a technology detection on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
-    elif action == "screenshot":
-        llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I attempted to capture a screenshot of {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
-        )
+
+    # ── For questions, use LLM ──
+    if is_question(request.prompt):
+        if "waf" in request.prompt.lower() or "firewall" in request.prompt.lower():
+            llm_prompt = (
+                f"The user asked: '{request.prompt}'\n\n"
+                f"Here is the scan data from {target}:\n{scan_data}\n\n"
+                f"Extract the firewall/WAF name from the scan data and output ONLY the name. "
+                f"If the data says 'Firewall: Cloudflare', output 'Cloudflare'. "
+                f"Do not output any other text. Just the name. If the data does not contain a firewall name, say 'Not found'.\n\n"
+                f"Use this format:\n"
+                f"### REASONING\n(any brief reasoning)\n"
+                f"### ANSWER\n(the answer only)"
+            )
+        else:
+            llm_prompt = (
+                f"The user asked a question: '{request.prompt}'\n\n"
+                f"Here is the scan data from {target}:\n{scan_data}\n\n"
+                f"Based ONLY on the scan data above, answer the user's question directly and concisely. "
+                f"DO NOT output the full formatted templates. Just give the direct answer.\n"
+                f"If the data does not contain the answer, say 'The scan data does not contain that information.'\n\n"
+                f"Use this format:\n"
+                f"### REASONING\n(any brief reasoning, if needed)\n"
+                f"### ANSWER\n(the answer only)"
+            )
     else:
         llm_prompt = (
-            f"The user asked: \"{user_question}\"\n\n"
-            f"I performed a full scan on {target} and got these results:\n\n"
-            f"{scan_data}\n\n"
-            f"Based on these results, please answer the user's question directly and specifically. "
-            f"Do not just repeat the scan results. Provide analysis, insights, and conclusions that address the user's query. "
-            f"Be concise but thorough."
+            f"The user requested: '{request.prompt}'\n\n"
+            f"Here is the scan data from {target}:\n{scan_data}\n\n"
+            f"Output the data exactly as provided, with no extra text."
         )
 
     try:
@@ -958,7 +1039,7 @@ async def chat(request: ChatRequest):
             {"role": "user", "content": llm_prompt}
         ]
 
-        if request.show_reasoning:
+        if should_reason and request.show_reasoning:
             reasoning_result = await llm_provider.chat([
                 {"role": "system", "content": "You are a reasoning engine. Provide a brief step-by-step reasoning about how you will answer the user's question. Keep it concise and professional."},
                 {"role": "user", "content": f"User asked: '{request.prompt}'. I performed a {action} scan on {target}. Explain your reasoning for the analysis you're about to provide."}
@@ -971,22 +1052,26 @@ async def chat(request: ChatRequest):
             timeout=240,
         )
         if llm_result.get("success"):
-            response_text = llm_result["response"]
+            raw_response = llm_result["response"]
+            reasoning_part = extract_reasoning_from_llm_response(raw_response)
+            answer_part = extract_answer_from_llm_response(raw_response)
+            if reasoning_part and request.show_reasoning:
+                reasoning_text = reasoning_part
+            response_text = answer_part if answer_part else clean_reasoning_from_response(raw_response)
         else:
             response_text = scan_data
+
     except asyncio.TimeoutError:
         response_text = f"{scan_data}\n\n(AI analysis timed out — scan data above is complete)"
 
     conversations[session_id].append({"role": "assistant", "content": response_text})
-
     return ChatResponse(
         response=response_text,
         session_id=session_id,
         provider="local",
         scan_id=scan_id,
-        reasoning=reasoning_text if request.show_reasoning else None,
+        reasoning=reasoning_text if (should_reason and request.show_reasoning) else None,
     )
-
 
 @router.get("/history")
 async def get_chat_history():
@@ -1009,7 +1094,6 @@ async def get_chat_history():
     except Exception as e:
         print(f"[LLM_ROUTER] History error: {e}")
         return {"conversations": []}
-
 
 @router.get("/history/{session_id}")
 async def get_conversation(session_id: str):

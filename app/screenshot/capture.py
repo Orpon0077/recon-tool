@@ -30,11 +30,8 @@ async def capture_screenshot(url: str) -> Dict:
             from playwright.async_api import async_playwright
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
-                # ভিউপোর্ট সাইজ সেট করুন (যেমন 1280x800)
                 page = await browser.new_page(viewport={"width": 1280, "height": 800})
-                await page.goto(url, timeout=30000)
-                
-                # full_page=False দিয়ে শুধু ভিউপোর্ট ক্যাপচার
+                await page.goto(url, timeout=60000)  # ← 60 sec
                 await page.screenshot(path=filepath, full_page=False)
                 await browser.close()
 

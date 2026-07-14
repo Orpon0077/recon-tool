@@ -24,7 +24,7 @@ def detect_technologies(url: str) -> dict:
     technologies = {}
 
     try:
-        response = requests.get(url, timeout=10, allow_redirects=True)
+        response = requests.get(url, timeout=30, allow_redirects=True)  # ← timeout 30
         headers = {k.lower(): v for k, v in response.headers.items()}
         html = response.text.lower()
         soup = BeautifulSoup(response.text, 'html.parser')
