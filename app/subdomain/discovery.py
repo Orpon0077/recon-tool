@@ -147,32 +147,25 @@ def is_valid_subdomain(hostname: str, base_domain: str) -> tuple:
     """
     Check if a subdomain is valid and doesn't contain external domains.
     Returns (is_valid, possible_parsing_error, reason)
-    
-    Fix for Issue #2: Detects malformed entries like kulvdi.tru-connect.biz.axiler.com
     """
     # Check if it ends with the base domain
     if not hostname.endswith(base_domain):
         return False, True, f"Does not end with base domain: {base_domain}"
-    
+
     # Remove base domain to check the prefix
     prefix = hostname[:-len(base_domain)].rstrip('.')
-    
+
     # Check if the prefix contains what looks like another domain (has a dot with TLD pattern)
-    # This detects "tru-connect.biz" inside "kulvdi.tru-connect.biz.axiler.com"
     if '.' in prefix:
-        # Check if prefix contains common TLD patterns
         tld_pattern = r'\.(com|org|net|biz|info|io|co|uk|us|de|fr|jp|cn|in|au|ca|ru|br|mx|it|nl|es|se|no|pl|tr|za|kr|tw|be|at|ch|dk|fi|ie|pt|gr|il|ae|sa|ng|pk|my|vn|th|ph|id|hk|nz|cl|ar|pe|ve|co\.uk|co\.in|com\.au)'
         if re.search(tld_pattern, prefix, re.IGNORECASE):
             return False, True, f"Contains external domain pattern in prefix: {prefix}"
-    
+
     return True, False, "Valid"
 
 
 def is_nextjs_internal_string(text: str) -> bool:
-    """
-    Check if a string is a Next.js internal framework string that should be filtered out.
-    Fix for Issue #3: Denylist for false positives.
-    """
+    """Check if a string is a Next.js internal framework string that should be filtered out."""
     nextjs_patterns = [
         r'__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE',
         r'__NEXT_DATA__',
@@ -187,7 +180,6 @@ def is_nextjs_internal_string(text: str) -> bool:
         r'__PROD__',
         r'__BROWSER__',
         r'__SERVER__',
-        r'__NEXT_',
         r'next/',
         r'next-',
     ]
@@ -206,7 +198,6 @@ def probe_subdomain(hostname: str, timeout: int = 5, source: str = "dns_brutefor
     cname = get_cname(hostname)
     takeover_service = detect_takeover(cname)
 
-    # Fix for Issue #1: resolved field is already here
     resolved = (ip != "N/A")
     if resolved:
         status = "live"
@@ -221,17 +212,16 @@ def probe_subdomain(hostname: str, timeout: int = 5, source: str = "dns_brutefor
         "cname": cname,
         "takeover_service": takeover_service,
         "status": status,
-        "resolved": resolved,          # ← Fix #1: Resolved flag
-        "source": source,             # ← Source tracking
+        "resolved": resolved,
+        "source": source,
         "http_status": "N/A",
         "technologies": [],
         "open_ports": [],
         "screenshot": None,
         "sensitive": is_sensitive_subdomain(hostname),
-        "possible_parsing_error": False,  # ← Fix #2: will be set by caller if needed
+        "possible_parsing_error": False,
     }
 
-    # HTTP probe only for live subdomains
     if status == "live":
         for scheme in ("https", "http"):
             try:
@@ -285,11 +275,13 @@ def discover_subdomains(target: str, extra_subdomains: List[str] | None = None) 
     """
     Discover subdomains using external tools + socket fallback.
     Returns all subdomains with classification: live, dead, zombie.
+    Also returns filtered_entries for traceability.
     """
     domain = extract_domain(target)
     logger.info(f"Subdomain Discovery for {domain}")
 
     subdomains: Set[str] = set(extra_subdomains or [])
+    filtered_entries: List[Dict[str, str]] = []
 
     # Subfinder
     try:
@@ -342,26 +334,25 @@ def discover_subdomains(target: str, extra_subdomains: List[str] | None = None) 
         except socket.error:
             pass
 
-    # ── Fix #2: Validate each subdomain and filter malformed entries ──
+    # ── Validate and filter subdomains ──
     valid_subdomains = set()
     for s in subdomains:
         is_valid, is_parsing_error, reason = is_valid_subdomain(s, domain)
         if is_valid:
             valid_subdomains.add(s)
         else:
+            filtered_entries.append({"subdomain": s, "reason": reason})
             if is_parsing_error:
-                logger.warning(f"Malformed subdomain detected (possible parsing error): {s} - {reason}")
+                logger.warning(f"Filtered malformed subdomain: {s} - {reason}")
             else:
-                logger.debug(f"Skipping subdomain: {s} - {reason}")
-    
-    # Also filter by base domain ending (safety net)
+                logger.info(f"Filtered subdomain (not ending with base domain): {s} - {reason}")
+
     subdomains = {s for s in valid_subdomains if s.endswith(domain)}
-    
+
     # Probe each subdomain
     result_list: List[Dict[str, Any]] = []
     for hostname in sorted(subdomains):
         probe_result = probe_subdomain(hostname, timeout=4, source="dns_bruteforce")
-        # Re-check validity for the specific hostname
         is_valid, is_parsing_error, _ = is_valid_subdomain(hostname, domain)
         if is_parsing_error:
             probe_result["possible_parsing_error"] = True
@@ -375,7 +366,7 @@ def discover_subdomains(target: str, extra_subdomains: List[str] | None = None) 
     sensitive_count = sum(1 for s in result_list if s.get("sensitive"))
     parsing_errors = sum(1 for s in result_list if s.get("possible_parsing_error", False))
 
-    logger.info(f"Total: {len(result_list)} | Live: {live_count} | Dead: {dead_count} | Zombie: {zombie_count} | Parsing Errors: {parsing_errors}")
+    logger.info(f"Total: {len(result_list)} | Live: {live_count} | Dead: {dead_count} | Zombie: {zombie_count} | Parsing Errors: {parsing_errors} | Filtered: {len(filtered_entries)}")
 
     return {
         "subdomains": result_list,
@@ -385,4 +376,5 @@ def discover_subdomains(target: str, extra_subdomains: List[str] | None = None) 
         "zombie_count": zombie_count,
         "sensitive_count": sensitive_count,
         "parsing_error_count": parsing_errors,
+        "filtered_entries": filtered_entries,  # ← For traceability
     }

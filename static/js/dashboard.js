@@ -42,7 +42,6 @@ document.addEventListener("DOMContentLoaded", function() {
   loadAutomationStatus();
   loadEmailConfig();
 
-  // ── Chat event listeners ──
   if (sendChatBtn) {
     sendChatBtn.addEventListener("click", sendChatMessage);
   }
@@ -672,7 +671,7 @@ function renderJSScanner(data) {
   body.innerHTML = html;
 }
 
-// ── UPDATED renderSubdomains with Resolved Column ──
+// ── renderSubdomains (with Resolved column) ──
 function renderSubdomains(data) {
   const body = document.getElementById("subdomainBody");
   const status = document.getElementById("subdomainStatus");
@@ -690,11 +689,15 @@ function renderSubdomains(data) {
   const dead = data.dead_count || 0;
   const zombie = data.zombie_count || 0;
   const parsingErrors = data.parsing_error_count || 0;
+  const filtered = data.filtered_entries || [];
 
   if (status) {
     let statusText = `${total} subdomains (🟢${live} · ⚫${dead} · 🟡${zombie})`;
     if (parsingErrors > 0) {
       statusText += ` ⚠️${parsingErrors} parsing errors`;
+    }
+    if (filtered.length > 0) {
+      statusText += ` 🔍${filtered.length} filtered`;
     }
     status.textContent = statusText;
   }
@@ -733,7 +736,7 @@ function renderSubdomains(data) {
     const resolvedLabel = resolved ? "✅ Yes" : "❌ No";
     const resolvedColor = resolved ? "#00aa55" : "#6a8070";
 
-    // Fix #1: Sensitive flag visual distinction
+    // Sensitive flag visual distinction
     const sensitive = sd.sensitive === true;
     const sensitiveDisplay = sensitive && resolved ? "🔴 YES (live)" : sensitive && !resolved ? "⚠️ Name match only" : "NO";
     const sensitiveColor = sensitive && resolved ? "#ff4444" : sensitive && !resolved ? "#ff8800" : "#6a8070";
@@ -766,7 +769,6 @@ function renderSubdomains(data) {
       </a>`;
     }
 
-    // Fix #2: Show warning for parsing errors
     const domainDisplay = parsingError
       ? `${esc(subdomain)} <span style="color:#ff8800; font-size:0.6rem;">⚠️ malformed</span>`
       : esc(subdomain);

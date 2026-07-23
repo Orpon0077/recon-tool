@@ -1,6 +1,14 @@
 """
 Risk Prioritization Engine (CTEM Framework)
 All code is strictly in English.
+
+Scoring Logic:
+- Starts at 100
+- Deductions based on severity:
+  - CRITICAL: -20 to -25
+  - HIGH: -10 to -12
+  - MEDIUM: -5 to -8
+  - LOW/INFO: no deduction (moved to observations)
 """
 
 import logging
@@ -218,7 +226,6 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
     elif isinstance(active_subs_raw, list):
         all_subdomains = active_subs_raw
 
-    # Fix #1: Only use resolved subdomains for risk calculation
     live_subdomains = []
     for s in all_subdomains:
         if isinstance(s, dict) and s.get("resolved", False):
@@ -255,7 +262,6 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
             })
             risk_score -= 5
 
-        # Fix #1: Only mark sensitive if resolved (live)
         sensitive_live = [s for s in live_subdomains if s.get("sensitive", False)]
         if sensitive_live:
             sensitive_names = [s.get("subdomain") for s in sensitive_live[:5]]
@@ -297,7 +303,7 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
         })
         risk_score -= 30
 
-    # ========== 7. JavaScript Analysis (Fix #3 & #4) ==========
+    # ========== 7. JavaScript Analysis (Confidence-based severity) ==========
     js_data = scan_results.get("js_scanner", scan_results.get("js", {}))
     if isinstance(js_data, dict) and not js_data.get("error"):
         tokens = js_data.get("tokens", [])
@@ -305,12 +311,12 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
         source_maps = js_data.get("source_maps", [])
         internal_paths = js_data.get("internal_paths", [])
 
-        # Fix #3: Count tokens by confidence level
+        # Count tokens by confidence level
         high_confidence_tokens = [t for t in tokens if t.get("confidence") == "high"]
         medium_confidence_tokens = [t for t in tokens if t.get("confidence") == "medium"]
         low_confidence_tokens = [t for t in tokens if t.get("confidence") == "low"]
 
-        # Fix #3: High confidence → CRITICAL
+        # High confidence → CRITICAL
         if high_confidence_tokens:
             findings.append({
                 "severity": "CRITICAL",
@@ -319,7 +325,7 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
             })
             risk_score -= 25
 
-        # Fix #3: Medium confidence → HIGH
+        # Medium confidence → HIGH
         if medium_confidence_tokens:
             findings.append({
                 "severity": "HIGH",
@@ -328,7 +334,7 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
             })
             risk_score -= 12
 
-        # Fix #3: Low confidence → Observations (INFO)
+        # Low confidence → Observations (INFO)
         if low_confidence_tokens:
             observations.append({
                 "severity": "INFO",
@@ -337,9 +343,8 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
             })
             # No risk score deduction for low confidence
 
-        # Fix #4: Explicit path leakage detection
+        # Path leakage detection (Fix #4)
         if not path_leakage:
-            # Look for path patterns in the JS files
             for p in internal_paths:
                 if any(x in p.lower() for x in ["node_modules", "root", "dist", "build", "src", "lib"]):
                     path_leakage.append(p)
@@ -383,10 +388,17 @@ def calculate_risk(scan_results: Dict[str, Any]) -> Dict[str, Any]:
         dead = subdomain_data.get("dead_count", 0)
         zombie = subdomain_data.get("zombie_count", 0)
         parsing_errors = subdomain_data.get("parsing_error_count", 0)
+        filtered = subdomain_data.get("filtered_entries", [])
+
         if total > 0:
             obs_text = f"Subdomains: {total} total (🟢 {live} live · ⚫ {dead} dead · 🟡 {zombie} zombie)"
             if parsing_errors > 0:
                 obs_text += f" ⚠️ {parsing_errors} parsing errors detected"
+            if filtered:
+                obs_text += f" | {len(filtered)} entries filtered as malformed"
+                examples = [f["subdomain"] for f in filtered[:3]]
+                if examples:
+                    obs_text += f" (e.g., {', '.join(examples)})"
             observations.append({
                 "severity": "INFO",
                 "description": obs_text,
