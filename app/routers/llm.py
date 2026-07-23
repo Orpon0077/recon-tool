@@ -24,6 +24,11 @@ from app.js_scanner.scanner import scan_javascript
 from app.report.pdf_generator import generate_pdf_report
 from app.database.db import get_scan_by_id, save_scan
 
+# --- NEW IMPORTS ---
+from app.osint.collector import OSINTCollector
+from app.prioritization.risk_score import calculate_risk
+from app.threat_intel import ThreatIntelCollector
+
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 
 class ChatRequest(BaseModel):
@@ -123,6 +128,9 @@ def detect_scan_intent(prompt: str, context: dict = None) -> Optional[dict]:
         "firewall": ["firewall", "waf", "cloudflare check", "waf detect", "ddos protection"],
         "screenshot": ["screenshot", "capture", "visual", "look like", "see the site"],
         "port_scan": ["port", "ports", "port scan", "open ports", "scan ports", "nmap"],
+        "osint": ["osint", "whois", "wayback", "crt.sh", "dns records"],
+        "risk": ["risk", "ctem", "prioritization", "risk score", "risk assessment"],
+        "threat_intel": ["threat", "threat intel", "threat intelligence", "reputation", "malicious", "virustotal", "abuseipdb"],
     }
 
     mentioned_modules = []
@@ -163,7 +171,6 @@ def is_list_request(prompt: str) -> bool:
     return any(kw in prompt_lower for kw in list_keywords)
 
 def clean_reasoning_from_response(text: str) -> str:
-    # (keep your existing clean function – unchanged)
     lines = text.split('\n')
     cleaned = []
     reasoning_patterns = [
@@ -251,7 +258,6 @@ def extract_answer_from_llm_response(raw: str) -> str:
             if cleaned:
                 return cleaned
             return answer_part
-    # Fallback: clean the whole response
     return clean_reasoning_from_response(raw)
 
 def extract_reasoning_from_llm_response(raw: str) -> str:
@@ -277,6 +283,7 @@ async def execute_scan(action: str, domain: str) -> dict:
         url = f"https://{domain}"
 
         if action == "full_scan":
+            osint_collector = OSINTCollector(domain)
             results_list = await asyncio.gather(
                 asyncio.to_thread(scan_ports, url, "top50"),
                 asyncio.to_thread(crawl_website, url),
@@ -287,23 +294,75 @@ async def execute_scan(action: str, domain: str) -> dict:
                 asyncio.to_thread(detect_firewall, url),
                 asyncio.to_thread(scan_javascript, url),
                 capture_screenshot(url),
+                osint_collector.run_all(),
+                asyncio.to_thread(calculate_risk, {}),
                 return_exceptions=True,
             )
-            return {
+            ports_res, crawl_res, subdomain_res, tech_res, ssl_res, headers_res, firewall_res, js_res, screenshot_res, osint_res, risk_res = results_list
+
+            full_result = {
                 "type": "full_scan",
                 "target": domain,
                 "url": url,
-                "ports": safe_result(results_list[0]),
-                "crawl": safe_result(results_list[1]),
-                "subdomains": safe_result(results_list[2]),
-                "tech": safe_result(results_list[3]),
-                "ssl": safe_result(results_list[4]),
-                "headers": safe_result(results_list[5]),
-                "firewall": safe_result(results_list[6]),
-                "js": safe_result(results_list[7]),
-                "screenshot": safe_result(results_list[8]),
+                "ports": safe_result(ports_res),
+                "crawl": safe_result(crawl_res),
+                "subdomains": safe_result(subdomain_res),
+                "tech": safe_result(tech_res),
+                "ssl": safe_result(ssl_res),
+                "headers": safe_result(headers_res),
+                "firewall": safe_result(firewall_res),
+                "js": safe_result(js_res),
+                "screenshot": safe_result(screenshot_res),
+                "osint": safe_result(osint_res),
                 "scan_id": str(uuid.uuid4()),
             }
+
+            risk_data = {
+                "ssl": full_result.get("ssl"),
+                "security_headers": full_result.get("headers"),
+                "ports": full_result.get("ports"),
+                "firewall": full_result.get("firewall"),
+                "subdomains": full_result.get("subdomains"),
+                "osint": full_result.get("osint"),
+                "crawl": full_result.get("crawl"),
+                "js_scanner": full_result.get("js"),
+            }
+            try:
+                risk_calc = await asyncio.to_thread(calculate_risk, risk_data)
+                full_result["risk"] = safe_result(risk_calc)
+            except Exception as e:
+                full_result["risk"] = {"error": str(e)}
+
+            # Threat Intelligence
+            try:
+                subs = full_result.get("subdomains", {})
+                ips = []
+                if isinstance(subs, dict):
+                    for s in subs.get("subdomains", []):
+                        if isinstance(s, dict):
+                            ip = s.get("ip")
+                            if ip and ip != "N/A":
+                                ips.append(ip)
+                import socket
+                try:
+                    main_ip = socket.gethostbyname(domain)
+                    ips.append(main_ip)
+                except:
+                    pass
+                sub_names = []
+                if isinstance(subs, dict):
+                    for s in subs.get("subdomains", []):
+                        if isinstance(s, dict):
+                            name = s.get("subdomain")
+                            if name:
+                                sub_names.append(name)
+                threat_collector = ThreatIntelCollector(domain, ips, sub_names)
+                threat_result = await threat_collector.run()
+                full_result["threat_intel"] = safe_result(threat_result)
+            except Exception as e:
+                full_result["threat_intel"] = {"error": str(e)}
+
+            return full_result
 
         elif action == "port_scan":
             result = await asyncio.to_thread(scan_ports, url, "top50")
@@ -345,6 +404,44 @@ async def execute_scan(action: str, domain: str) -> dict:
                 result["error"] = "No JavaScript files found or scan produced no data"
             return {"type": "js", "target": domain, "data": safe_result(result), "url": url}
 
+        elif action == "osint":
+            collector = OSINTCollector(domain)
+            result = await collector.run_all()
+            return {"type": "osint", "target": domain, "data": safe_result(result), "url": url}
+
+        elif action == "risk":
+            scan_result = await execute_scan("full_scan", domain)
+            risk = scan_result.get("risk")
+            return {"type": "risk", "target": domain, "data": safe_result(risk), "url": url}
+
+        elif action == "threat_intel":
+            # For threat intel, we need IPs and subdomains first
+            sub_result = await execute_scan("subdomain", domain)
+            subs = sub_result.get("data", {})
+            ips = []
+            if isinstance(subs, dict):
+                for s in subs.get("subdomains", []):
+                    if isinstance(s, dict):
+                        ip = s.get("ip")
+                        if ip and ip != "N/A":
+                            ips.append(ip)
+            import socket
+            try:
+                main_ip = socket.gethostbyname(domain)
+                ips.append(main_ip)
+            except:
+                pass
+            sub_names = []
+            if isinstance(subs, dict):
+                for s in subs.get("subdomains", []):
+                    if isinstance(s, dict):
+                        name = s.get("subdomain")
+                        if name:
+                            sub_names.append(name)
+            threat_collector = ThreatIntelCollector(domain, ips, sub_names)
+            result = await threat_collector.run()
+            return {"type": "threat_intel", "target": domain, "data": safe_result(result), "url": url}
+
         else:
             return {"type": "unknown", "target": domain, "data": None, "url": url}
 
@@ -383,10 +480,16 @@ def format_scan_results(scan_results: dict) -> str:
         if not isinstance(data, dict):
             data = {}
         subs = data.get("subdomains", [])
-        total = data.get("total_found", len(subs))
         if subs:
-            # ── SHOW ALL SUBDOMAINS (no truncation) ──
-            lines = [f"  {s.get('subdomain','')} -> {s.get('ip','unknown')}" for s in subs]
+            lines = []
+            for s in subs:
+                sub = s.get('subdomain', '')
+                ip = s.get('ip', 'N/A')
+                status = s.get('http_status', 'N/A')
+                tech = ', '.join(s.get('technologies', [])) if s.get('technologies') else 'N/A'
+                ports = ', '.join(map(str, s.get('open_ports', []))) if s.get('open_ports') else 'N/A'
+                sensitive = '⚠️' if s.get('sensitive') else ''
+                lines.append(f"  {sub} {sensitive} -> IP: {ip} | HTTP: {status} | Tech: {tech} | Open Ports: {ports}")
             return f"SUBDOMAIN DISCOVERY — {target}\nTotal subdomains found: {len(subs)}\n" + "\n".join(lines)
         return f"SUBDOMAIN DISCOVERY — {target}\nNo subdomains found."
 
@@ -437,10 +540,13 @@ def format_scan_results(scan_results: dict) -> str:
         if not data or not isinstance(data, dict):
             return f"FIREWALL DETECTION — {target}\nFailed."
         if data.get("detected"):
+            fw_name = data.get('firewall_name', 'Unknown')
+            cdn = data.get('cdn_detected', False)
+            label = "CDN" if cdn else "WAF"
             return (
                 f"FIREWALL DETECTION — {target}\n"
                 f"  Detected: YES\n"
-                f"  Firewall: {data.get('firewall_name', 'Unknown')}\n"
+                f"  {label}: {fw_name}\n"
                 f"  Evidence: {data.get('evidence', 'unknown')}"
             )
         return (
@@ -469,6 +575,8 @@ def format_scan_results(scan_results: dict) -> str:
         emails = data.get("emails", [])
         api_endpoints = data.get("api_endpoints", [])
         internal_paths = data.get("internal_paths", [])
+        tokens = data.get("tokens", [])
+        source_maps = data.get("source_maps", [])
 
         lines = [f"JS ANALYSIS — {target}"]
         lines.append(f"  Total JS files found: {total}")
@@ -481,8 +589,15 @@ def format_scan_results(scan_results: dict) -> str:
             if len(files) > 5:
                 lines.append(f"    ... and {len(files)-5} more")
 
+        if tokens:
+            lines.append(f"  ⚠️ Potential secrets/tokens found: {len(tokens)}")
+            lines.append(f"    Examples: {', '.join(tokens[:3])}")
+
+        if source_maps:
+            lines.append(f"  📁 Source maps exposed: {len(source_maps)}")
+
         if vulnerabilities:
-            lines.append(f"  ⚠️ Potential issues found: {len(vulnerabilities)}")
+            lines.append(f"  ⚠️ Potential issues: {len(vulnerabilities)}")
             for v in vulnerabilities[:5]:
                 lines.append(f"    - {v.get('file', 'unknown')}: {v.get('pattern', '')}")
 
@@ -495,8 +610,98 @@ def format_scan_results(scan_results: dict) -> str:
         if internal_paths:
             lines.append(f"  📁 Internal paths: {', '.join(internal_paths[:5])}")
 
-        if not files and not vulnerabilities and not emails and not api_endpoints and not internal_paths:
+        if not files and not vulnerabilities and not emails and not api_endpoints and not internal_paths and not tokens:
             lines.append("  No sensitive data or interesting findings discovered.")
+
+        return "\n".join(lines)
+
+    elif scan_type == "osint":
+        data = scan_results.get("data", {})
+        if not data or not isinstance(data, dict):
+            return f"OSINT — {target}\n  No data available."
+        lines = [f"OSINT — {target}"]
+        whois = data.get("whois", {})
+        if whois and not whois.get("error"):
+            lines.append(f"  WHOIS: Registrar {whois.get('registrar', 'N/A')}, Created {whois.get('creation_date', 'N/A')}, Expires {whois.get('expiration_date', 'N/A')}")
+            ns = whois.get('name_servers', [])
+            if ns:
+                lines.append(f"  Name Servers: {', '.join(ns)}")
+        dns = data.get("dns_records", {})
+        if dns:
+            lines.append("  DNS Records:")
+            for qtype, values in dns.items():
+                if values:
+                    lines.append(f"    {qtype}: {', '.join(values)}")
+        wayback = data.get("wayback_urls", [])
+        if wayback:
+            lines.append(f"  Wayback URLs: {len(wayback)} found (first 5):")
+            for w in wayback[:5]:
+                lines.append(f"    - {w}")
+        crt = data.get("crt_subdomains", [])
+        if crt:
+            lines.append(f"  crt.sh subdomains: {len(crt)} found (first 5):")
+            for c in crt[:5]:
+                lines.append(f"    - {c}")
+        if not any([whois, dns, wayback, crt]):
+            lines.append("  No OSINT data found.")
+        return "\n".join(lines)
+
+    elif scan_type == "risk":
+        data = scan_results.get("data", {})
+        if not data or not isinstance(data, dict):
+            return f"RISK — {target}\n  No risk data available."
+        if data.get("error"):
+            return f"RISK — {target}\n  Error: {data['error']}"
+        lines = [f"RISK ASSESSMENT — {target}"]
+        lines.append(f"  Overall Risk: {data.get('overall_risk', 'UNKNOWN')}")
+        lines.append(f"  Score: {data.get('score', 'N/A')}/100")
+        lines.append(f"  Headline: {data.get('headline', '')}")
+        summary = data.get("summary", {})
+        if summary:
+            lines.append(f"  Severity Summary: Critical: {summary.get('critical', 0)}, High: {summary.get('high', 0)}, Medium: {summary.get('medium', 0)}, Low: {summary.get('low', 0)}")
+        findings = data.get("findings", [])
+        if findings:
+            lines.append(f"  Findings ({len(findings)}):")
+            for f in findings[:5]:
+                lines.append(f"    - [{f.get('severity')}] {f.get('description')}")
+            if len(findings) > 5:
+                lines.append(f"    ... and {len(findings)-5} more")
+        observations = data.get("observations", [])
+        if observations:
+            lines.append(f"  Observations ({len(observations)}):")
+            for obs in observations[:3]:
+                lines.append(f"    - {obs.get('description')}")
+        return "\n".join(lines)
+
+    elif scan_type == "threat_intel":
+        data = scan_results.get("data", {})
+        if not data or not isinstance(data, dict):
+            return f"THREAT INTEL — {target}\n  No data available."
+        if data.get("error"):
+            return f"THREAT INTEL — {target}\n  Error: {data['error']}"
+        lines = [f"THREAT INTELLIGENCE — {data.get('domain', target)}"]
+        summary = data.get("summary", {})
+        lines.append(f"  Entities checked: {summary.get('total_entities', 0)}")
+        lines.append(f"  Malicious entities found: {summary.get('malicious_count', 0)}")
+        lines.append(f"  High-risk entities: {summary.get('high_risk_count', 0)}")
+
+        malicious = data.get("malicious_entities", [])
+        if malicious:
+            lines.append(f"  ⚠️ Malicious entities: {', '.join(malicious[:5])}")
+        high_risk = data.get("high_risk_entities", [])
+        if high_risk:
+            lines.append(f"  ⚠️ High-risk entities: {', '.join(high_risk[:5])}")
+
+        details = data.get("details", {})
+        scored_items = []
+        for entity, entity_data in details.items():
+            if isinstance(entity_data, dict) and "risk_score" in entity_data:
+                scored_items.append((entity, entity_data["risk_score"]))
+        scored_items.sort(key=lambda x: x[1], reverse=True)
+        if scored_items:
+            lines.append("  Top risk scores:")
+            for entity, score in scored_items[:3]:
+                lines.append(f"    - {entity}: {score}/100")
 
         return "\n".join(lines)
 
@@ -520,10 +725,16 @@ def format_scan_results(scan_results: dict) -> str:
             subs = s.get("subdomains", [])
             if subs:
                 parts.append(f"\nSUBDOMAIN DISCOVERY:\nFound {len(subs)} subdomains:")
-                for sub in subs[:30]:
-                    parts.append(f"  - {sub.get('subdomain', 'unknown')} -> {sub.get('ip', 'unknown')}")
-                if len(subs) > 30:
-                    parts.append(f"  ... and {len(subs)-30} more subdomains")
+                for sub in subs[:20]:
+                    sub_name = sub.get('subdomain', 'unknown')
+                    ip = sub.get('ip', 'N/A')
+                    status = sub.get('http_status', 'N/A')
+                    tech = ', '.join(sub.get('technologies', [])) if sub.get('technologies') else 'N/A'
+                    ports = ', '.join(map(str, sub.get('open_ports', []))) if sub.get('open_ports') else 'N/A'
+                    sensitive = ' (⚠️ sensitive)' if sub.get('sensitive') else ''
+                    parts.append(f"  - {sub_name}{sensitive} -> IP: {ip} | HTTP: {status} | Tech: {tech} | Ports: {ports}")
+                if len(subs) > 20:
+                    parts.append(f"  ... and {len(subs)-20} more subdomains")
             else:
                 parts.append("\nSUBDOMAIN DISCOVERY:\nNo subdomains found.")
 
@@ -577,10 +788,14 @@ def format_scan_results(scan_results: dict) -> str:
         fw = scan_results.get("firewall")
         if fw and isinstance(fw, dict):
             parts.append(f"\nFIREWALL DETECTION:")
-            parts.append(f"  - Detected: {'YES' if fw.get('detected') else 'NO'}")
             if fw.get('detected'):
-                parts.append(f"  - Firewall: {fw.get('firewall_name', 'Unknown')}")
+                fw_name = fw.get('firewall_name', 'Unknown')
+                cdn = fw.get('cdn_detected', False)
+                label = "CDN" if cdn else "WAF"
+                parts.append(f"  - {label}: {fw_name}")
                 parts.append(f"  - Evidence: {fw.get('evidence', 'unknown')}")
+            else:
+                parts.append(f"  - No CDN/WAF detected")
 
         js = scan_results.get("js")
         if js and isinstance(js, dict):
@@ -590,6 +805,8 @@ def format_scan_results(scan_results: dict) -> str:
             api_endpoints = js.get("api_endpoints", [])
             internal_paths = js.get("internal_paths", [])
             vulnerabilities = js.get("vulnerabilities", [])
+            tokens = js.get("tokens", [])
+            source_maps = js.get("source_maps", [])
 
             parts.append(f"\nJAVASCRIPT ANALYSIS:")
             parts.append(f"  - Total JS files found: {total_js}")
@@ -600,6 +817,10 @@ def format_scan_results(scan_results: dict) -> str:
                     parts.append(f"    - {url_str}")
                 if len(js_files) > 5:
                     parts.append(f"    ... and {len(js_files)-5} more")
+            if tokens:
+                parts.append(f"  - Potential secrets: {len(tokens)} found")
+            if source_maps:
+                parts.append(f"  - Source maps exposed: {len(source_maps)}")
             if emails:
                 parts.append(f"  - Emails found: {', '.join(emails[:5])}")
             if api_endpoints:
@@ -608,6 +829,46 @@ def format_scan_results(scan_results: dict) -> str:
                 parts.append(f"  - Internal paths: {', '.join(internal_paths[:5])}")
             if vulnerabilities:
                 parts.append(f"  - Potential issues: {len(vulnerabilities)} found")
+
+        osint = scan_results.get("osint")
+        if osint and isinstance(osint, dict):
+            parts.append(f"\nOSINT INTELLIGENCE:")
+            whois = osint.get("whois", {})
+            if whois and not whois.get("error"):
+                parts.append(f"  - WHOIS: Registrar {whois.get('registrar', 'N/A')}, Created {whois.get('creation_date', 'N/A')}")
+            wayback = osint.get("wayback_urls", [])
+            if wayback:
+                parts.append(f"  - Wayback URLs: {len(wayback)} found")
+            crt = osint.get("crt_subdomains", [])
+            if crt:
+                parts.append(f"  - crt.sh subdomains: {len(crt)} found")
+            if not any([whois, wayback, crt]):
+                parts.append("  - No OSINT data retrieved.")
+
+        risk = scan_results.get("risk")
+        if risk and isinstance(risk, dict):
+            parts.append(f"\nRISK PRIORITIZATION:")
+            parts.append(f"  - Overall Risk: {risk.get('overall_risk', 'UNKNOWN')}")
+            parts.append(f"  - Score: {risk.get('score', 'N/A')}/100")
+            summary = risk.get("summary", {})
+            if summary:
+                parts.append(f"  - Severity Counts: Critical: {summary.get('critical', 0)}, High: {summary.get('high', 0)}, Medium: {summary.get('medium', 0)}, Low: {summary.get('low', 0)}")
+            findings = risk.get("findings", [])
+            if findings:
+                parts.append(f"  - Findings ({len(findings)}):")
+                for f in findings[:3]:
+                    parts.append(f"    - [{f.get('severity')}] {f.get('description')}")
+
+        threat = scan_results.get("threat_intel")
+        if threat and isinstance(threat, dict):
+            parts.append(f"\nTHREAT INTELLIGENCE:")
+            summary = threat.get("summary", {})
+            parts.append(f"  - Entities checked: {summary.get('total_entities', 0)}")
+            parts.append(f"  - Malicious entities: {summary.get('malicious_count', 0)}")
+            parts.append(f"  - High-risk entities: {summary.get('high_risk_count', 0)}")
+            malicious = threat.get("malicious_entities", [])
+            if malicious:
+                parts.append(f"  - Malicious: {', '.join(malicious[:5])}")
 
         return "\n".join(parts)
 
@@ -683,7 +944,6 @@ async def chat_stream(request: ChatRequest):
         print(f"[LLM_ROUTER] Scan intent: {action} on {target}")
 
         if action == "generate_report":
-            # (keep your existing PDF generation code – unchanged)
             scan_id = ctx.get("last_scan_id")
             full_result = ctx.get("last_full_result")
 
@@ -747,7 +1007,7 @@ async def chat_stream(request: ChatRequest):
                 return StreamingResponse(error_stream(), media_type="text/event-stream")
 
         should_reason = True
-        if action in ["subdomain", "full_scan"]:
+        if action in ["subdomain", "full_scan", "osint", "risk", "threat_intel"]:
             scan_timeout = 300
         else:
             scan_timeout = 180
@@ -778,7 +1038,6 @@ async def chat_stream(request: ChatRequest):
             print(f"[LLM_ROUTER] Follow-up detected, using previous {action} result for {target}")
             should_reason = True
         else:
-            # Pure chat (no scan data) – send directly to LLM
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": request.prompt}
@@ -791,9 +1050,7 @@ async def chat_stream(request: ChatRequest):
     if not scan_data or scan_data.strip() == "No results available.":
         scan_data = "No scan data available. Please run a scan first."
 
-    # ── CRITICAL DECISION: bypass LLM for list/show requests ──
     if is_list_request(request.prompt):
-        # Directly return the formatted scan data – no LLM
         print("[LLM_ROUTER] List/show request detected – returning raw data directly")
         async def data_stream():
             lines = scan_data.split('\n')
@@ -803,9 +1060,7 @@ async def chat_stream(request: ChatRequest):
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
         return StreamingResponse(data_stream(), media_type="text/event-stream")
 
-    # ── For questions, use LLM with a strict prompt ──
     if is_question(request.prompt):
-        # Special case for WAF/firewall questions
         if "waf" in request.prompt.lower() or "firewall" in request.prompt.lower():
             llm_prompt = (
                 f"The user asked: '{request.prompt}'\n\n"
@@ -830,7 +1085,6 @@ async def chat_stream(request: ChatRequest):
                 f"### ANSWER\n(the answer only)"
             )
     else:
-        # Default: treat as a command – output formatted data (though this branch should not be reached for list/show)
         llm_prompt = (
             f"The user requested: '{request.prompt}'\n\n"
             f"Here is the scan data from {target}:\n{scan_data}\n\n"
@@ -879,7 +1133,6 @@ async def chat(request: ChatRequest):
         print(f"[LLM_ROUTER] Scan intent: {action} on {target}")
 
         if action == "generate_report":
-            # (keep your existing PDF generation – unchanged)
             scan_id = ctx.get("last_scan_id")
             full_result = ctx.get("last_full_result")
 
@@ -926,7 +1179,7 @@ async def chat(request: ChatRequest):
             )
 
         should_reason = True
-        if action in ["subdomain", "full_scan"]:
+        if action in ["subdomain", "full_scan", "osint", "risk", "threat_intel"]:
             scan_timeout = 300
         else:
             scan_timeout = 180
@@ -957,7 +1210,6 @@ async def chat(request: ChatRequest):
             print(f"[LLM_ROUTER] Follow-up (non-stream) using previous {action} result for {target}")
             should_reason = True
         else:
-            # Pure chat – send directly to LLM
             try:
                 messages = [
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -991,7 +1243,6 @@ async def chat(request: ChatRequest):
     if not scan_data or scan_data.strip() == "No results available.":
         scan_data = "No scan data available. Please run a scan first."
 
-    # ── CRITICAL: bypass LLM for list/show requests ──
     if is_list_request(request.prompt):
         print("[LLM_ROUTER] List/show request detected – returning raw data directly")
         return ChatResponse(
@@ -1002,7 +1253,6 @@ async def chat(request: ChatRequest):
             reasoning=None,
         )
 
-    # ── For questions, use LLM ──
     if is_question(request.prompt):
         if "waf" in request.prompt.lower() or "firewall" in request.prompt.lower():
             llm_prompt = (

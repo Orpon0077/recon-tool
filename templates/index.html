@@ -226,9 +226,42 @@
               <p class="no-data">Subdomain discovery will run automatically.</p>
             </div>
           </section>
+
+          <!-- OSINT Panel -->
+          <section class="panel result-panel" id="osintPanel">
+            <div class="panel-header">
+              <span class="panel-title">🌍 OSINT INTELLIGENCE</span>
+              <span class="panel-status" id="osintStatus"></span>
+            </div>
+            <div class="panel-body" id="osintBody">
+              <p class="no-data">OSINT collection will run automatically.</p>
+            </div>
+          </section>
+
+          <!-- Risk Panel -->
+          <section class="panel result-panel" id="riskPanel">
+            <div class="panel-header">
+              <span class="panel-title">📊 RISK PRIORITIZATION (CTEM)</span>
+              <span class="panel-status" id="riskStatus"></span>
+            </div>
+            <div class="panel-body" id="riskBody">
+              <p class="no-data">Risk assessment will run automatically.</p>
+            </div>
+          </section>
+
+          <!-- NEW: Threat Intelligence Panel -->
+          <section class="panel result-panel" id="threatIntelPanel">
+            <div class="panel-header">
+              <span class="panel-title">🛡️ THREAT INTELLIGENCE</span>
+              <span class="panel-status" id="threatIntelStatus"></span>
+            </div>
+            <div class="panel-body" id="threatIntelBody">
+              <p class="no-data">Threat intelligence collection will run automatically.</p>
+            </div>
+          </section>
         </div>
 
-        <!-- ── EMAIL CONFIGURATION PANEL (With Password) ── -->
+        <!-- Email Panel -->
         <section class="panel" id="emailPanel" style="margin-top: 20px;">
           <div class="panel-header">
             <span class="panel-title">📧 EMAIL CONFIGURATION</span>
@@ -258,7 +291,7 @@
           </div>
         </section>
 
-        <!-- ── AUTOMATION PANEL ── -->
+        <!-- Automation Panel -->
         <section class="panel" id="automationPanel" style="margin-top: 20px;">
           <div class="panel-header">
             <span class="panel-title">🤖 AUTOMATION STATUS</span>
@@ -293,7 +326,6 @@
     <span class="footer-right">FastAPI · Playwright · BeautifulSoup4</span>
   </footer>
 
-  <!-- ── AI Chat Bottom Middle ── -->
   <a href="/chat" target="_blank" class="ai-chat-bottom" id="aiChatButton">
     <span class="pulse"></span>
     <span>AI CHAT</span>

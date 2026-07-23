@@ -235,9 +235,11 @@ async function loadScan(scanId) {
     renderFirewall(targetData.firewall);
     renderTech(targetData.tech);
     renderCrawl(targetData.crawl);
-
-    if (targetData.js_scanner) renderJSScanner(targetData.js_scanner);
-    if (targetData.subdomains) renderSubdomains(targetData.subdomains);
+    renderJSScanner(targetData.js_scanner || targetData.js);
+    renderSubdomains(targetData.subdomains);
+    renderOSINT(targetData.osint);
+    renderRisk(targetData.risk);
+    renderThreatIntel(targetData.threat_intel);
 
     setStatus("done", "LOADED FROM HISTORY");
 
@@ -255,9 +257,8 @@ async function loadScan(scanId) {
   }
 }
 
-// ── Main Scan Function (UPDATED: 30-minute timeout + scan lock) ──
+// ── Main Scan Function ──
 async function startScan() {
-  // ── Prevent multiple simultaneous scans ──
   if (_scanRunning) {
     log("Scan already in progress. Please wait.", "error");
     return;
@@ -291,7 +292,6 @@ async function startScan() {
   log("Running engine modules in parallel...");
 
   try {
-    // ── TIMEOUT INCREASED TO 30 MINUTES (1,800,000 ms) ──
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       console.log("[startScan] 30-minute timeout reached, aborting.");
@@ -328,16 +328,18 @@ async function startScan() {
 
     if (resultsGrid) resultsGrid.style.display = "grid";
 
-    if (data.ssl) renderSSL(data.ssl);
-    if (data.security_headers) renderSecurity(data.security_headers);
-    if (data.ports) renderPorts(data.ports);
-    if (data.screenshot) renderScreenshot(data.screenshot);
-    if (data.firewall) renderFirewall(data.firewall);
-    if (data.tech) renderTech(data.tech);
-    if (data.crawl) renderCrawl(data.crawl);
-    if (data.js) renderJSScanner(data.js);
-    if (data.js_scanner) renderJSScanner(data.js_scanner);
-    if (data.subdomains) renderSubdomains(data.subdomains);
+    renderSSL(data.ssl);
+    renderSecurity(data.security_headers);
+    renderPorts(data.ports);
+    renderScreenshot(data.screenshot);
+    renderFirewall(data.firewall);
+    renderTech(data.tech);
+    renderCrawl(data.crawl);
+    renderJSScanner(data.js_scanner || data.js);
+    renderSubdomains(data.subdomains);
+    renderOSINT(data.osint);
+    renderRisk(data.risk);
+    renderThreatIntel(data.threat_intel);
 
     setStatus("done", "COMPLETE");
     window._lastScanData = data;
@@ -504,9 +506,14 @@ function renderFirewall(data) {
     return;
   }
 
-  if (data.detected) {
-    if (status) status.textContent = data.firewall_name;
-    body.innerHTML = `<div class="firewall-box detected">⚠ Firewall Detected: ${esc(data.firewall_name)}</div><div class="data-row"><span class="data-key">Evidence</span><span class="data-val">${esc(data.evidence)}</span></div>`;
+  if (data.detected || data.cdn_detected || data.waf_detected) {
+    const parts = [];
+    if (data.cdn_detected) parts.push(`CDN: ${esc(data.cdn_name || data.firewall_name || "Unknown")}`);
+    if (data.waf_detected) parts.push(`WAF: ${esc(data.waf_name || data.firewall_name || "Unknown")}`);
+    if (status) status.textContent = parts.join(" · ") || data.firewall_name || "Detected";
+    body.innerHTML = `
+      <div class="firewall-box detected">${parts.length ? parts.join("<br>") : `Protection layer detected: ${esc(data.firewall_name || "Unknown")}`}</div>
+      <div class="data-row"><span class="data-key">Evidence</span><span class="data-val">${esc(data.evidence)}</span></div>`;
   } else {
     if (status) status.textContent = "Not Detected";
     body.innerHTML = `<div class="firewall-box not-detected">✓ No Firewall Detected</div><div class="data-row"><span class="data-key">Evidence</span><span class="data-val">${esc(data.evidence)}</span></div>`;
@@ -622,14 +629,50 @@ function renderJSScanner(data) {
     html += `</div></div>`;
   }
 
-  if (!data.js_files?.length && !data.emails?.length && !data.internal_paths?.length) {
+  if (data.api_endpoints && data.api_endpoints.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">🔗 API Endpoints (${data.api_endpoints.length})</div><div class="tech-badges">`;
+    data.api_endpoints.slice(0, 10).forEach(path => {
+      html += `<span class="tech-badge" style="color: #ffaa00;">${esc(path)}</span>`;
+    });
+    html += `</div></div>`;
+  }
+
+  if (data.path_leakage && data.path_leakage.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">⚠ Build Path Leakage (${data.path_leakage.length})</div><div class="tech-badges">`;
+    data.path_leakage.slice(0, 10).forEach(path => {
+      html += `<span class="tech-badge" style="color: #ff4444;">${esc(path)}</span>`;
+    });
+    html += `</div></div>`;
+  }
+
+  if (data.tokens && data.tokens.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">🔑 Potential Secrets</div>`;
+    html += `<table style="width:100%; font-size:0.75rem; border-collapse:collapse;">`;
+    html += `<tr><th style="color:#ffaa00; text-align:left;">Value</th><th style="color:#ffaa00; text-align:left;">Confidence</th><th style="color:#ffaa00; text-align:left;">Context</th></tr>`;
+    data.tokens.slice(0, 5).forEach(token => {
+      const value = token.value || 'N/A';
+      const confidence = token.confidence || 'unknown';
+      const context = token.context || 'N/A';
+      const color = confidence === 'high' ? '#ff4444' : confidence === 'medium' ? '#ff8800' : '#ffaa00';
+      html += `<tr><td style="padding:4px; font-family:monospace;">${esc(value)}</td><td style="padding:4px; color:${color}; font-weight:bold;">${esc(confidence)}</td><td style="padding:4px; font-size:0.7rem; color:#aaa;">${esc(context)}</td></tr>`;
+    });
+    html += `</table>`;
+    html += `<p class="no-data" style="margin-top:8px;">Potential credentials detected in client-side JavaScript. Review and rotate if confirmed.</p>`;
+    html += `</div>`;
+  }
+
+  if (data.source_maps && data.source_maps.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">🗺 Source Maps (${data.source_maps.length})</div><p class="no-data">Public source maps may expose application internals.</p></div>`;
+  }
+
+  if (!data.js_files?.length && !data.emails?.length && !data.internal_paths?.length && !data.api_endpoints?.length && !data.path_leakage?.length && !data.tokens?.length) {
     html += `<p class="no-data">No valuable information found in JavaScript files.</p>`;
   }
 
   body.innerHTML = html;
 }
 
-// ── UPDATED renderSubdomains (Safe: handles missing fields with N/A fallback) ──
+// ── UPDATED renderSubdomains with Resolved Column ──
 function renderSubdomains(data) {
   const body = document.getElementById("subdomainBody");
   const status = document.getElementById("subdomainStatus");
@@ -643,8 +686,18 @@ function renderSubdomains(data) {
 
   const subdomains = data.subdomains || [];
   const total = data.total_found || subdomains.length || 0;
+  const live = data.live_count || 0;
+  const dead = data.dead_count || 0;
+  const zombie = data.zombie_count || 0;
+  const parsingErrors = data.parsing_error_count || 0;
 
-  if (status) status.textContent = `${total} subdomains`;
+  if (status) {
+    let statusText = `${total} subdomains (🟢${live} · ⚫${dead} · 🟡${zombie})`;
+    if (parsingErrors > 0) {
+      statusText += ` ⚠️${parsingErrors} parsing errors`;
+    }
+    status.textContent = statusText;
+  }
 
   if (total === 0 || subdomains.length === 0) {
     body.innerHTML = `<p class="no-data">No subdomains found.</p>`;
@@ -656,12 +709,14 @@ function renderSubdomains(data) {
     <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
       <thead>
         <tr style="background: #1a2e20;">
-          <th style="padding: 10px 12px; text-align: left; color: #00ff88; font-weight: 600; border-bottom: 1px solid #2a4a3a;">Subdomain</th>
-          <th style="padding: 10px 12px; text-align: left; color: #00ff88; font-weight: 600; border-bottom: 1px solid #2a4a3a;">IP Address</th>
-          <th style="padding: 10px 12px; text-align: left; color: #00ff88; font-weight: 600; border-bottom: 1px solid #2a4a3a;">HTTP Status</th>
-          <th style="padding: 10px 12px; text-align: left; color: #00ff88; font-weight: 600; border-bottom: 1px solid #2a4a3a;">Technologies</th>
-          <th style="padding: 10px 12px; text-align: left; color: #00ff88; font-weight: 600; border-bottom: 1px solid #2a4a3a;">Open Ports</th>
-          <th style="padding: 10px 12px; text-align: left; color: #00ff88; font-weight: 600; border-bottom: 1px solid #2a4a3a;">Screenshot</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">Subdomain</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">IP</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">Resolved</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">Status</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">Sensitive</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">Technologies</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">Open Ports</th>
+          <th style="padding: 10px 12px; text-align: left; color: #00ff88; border-bottom: 1px solid #2a4a3a;">Screenshot</th>
         </tr>
       </thead>
       <tbody>
@@ -670,16 +725,21 @@ function renderSubdomains(data) {
   subdomains.forEach((sd, index) => {
     const subdomain = sd.subdomain || sd.name || "Unknown";
     const ip = sd.ip || sd.ip_address || "N/A";
-    const statusCode = sd.http_status || sd.status_code || "N/A";
-    const rowBg = index % 2 === 0 ? "#050807" : "#080d0b";
+    const statusVal = sd.status || "dead";
+    const resolved = sd.resolved === true;
+    const parsingError = sd.possible_parsing_error === true;
+    const statusColor = statusVal === "live" ? "#00aa55" : statusVal === "zombie" ? "#ff8800" : "#6a8070";
+    const statusLabel = statusVal === "live" ? "🟢 Live" : statusVal === "zombie" ? "🟡 Zombie" : "⚫ Dead";
+    const resolvedLabel = resolved ? "✅ Yes" : "❌ No";
+    const resolvedColor = resolved ? "#00aa55" : "#6a8070";
 
-    let statusColor = "#6a8070";
-    if (statusCode !== "N/A") {
-      const code = parseInt(statusCode);
-      if (code >= 200 && code < 300) statusColor = "#00aa55";
-      else if (code >= 300 && code < 400) statusColor = "#ff8800";
-      else if (code >= 400) statusColor = "#ff4444";
-    }
+    // Fix #1: Sensitive flag visual distinction
+    const sensitive = sd.sensitive === true;
+    const sensitiveDisplay = sensitive && resolved ? "🔴 YES (live)" : sensitive && !resolved ? "⚠️ Name match only" : "NO";
+    const sensitiveColor = sensitive && resolved ? "#ff4444" : sensitive && !resolved ? "#ff8800" : "#6a8070";
+
+    const rowBg = index % 2 === 0 ? "#050807" : "#080d0b";
+    const errorBg = parsingError ? "#2a1a1a" : rowBg;
 
     let techHtml = '<span style="color: #6a8070;">N/A</span>';
     if (sd.technologies && Array.isArray(sd.technologies) && sd.technologies.length > 0) {
@@ -706,16 +766,23 @@ function renderSubdomains(data) {
       </a>`;
     }
 
+    // Fix #2: Show warning for parsing errors
+    const domainDisplay = parsingError
+      ? `${esc(subdomain)} <span style="color:#ff8800; font-size:0.6rem;">⚠️ malformed</span>`
+      : esc(subdomain);
+
     html += `
-      <tr style="background: ${rowBg}; border-bottom: 1px solid #1a2e20;">
+      <tr style="background: ${errorBg}; border-bottom: 1px solid #1a2e20;">
         <td style="padding: 8px 12px; color: #00ff88; font-family: monospace;">
           <a href="https://${esc(subdomain)}" target="_blank" rel="noopener"
              style="color: #00ff88; text-decoration: none;"
              onmouseover="this.style.textDecoration='underline'"
-             onmouseout="this.style.textDecoration='none'">${esc(subdomain)}</a>
+             onmouseout="this.style.textDecoration='none'">${domainDisplay}</a>
         </td>
         <td style="padding: 8px 12px; color: #b8cfbe; font-family: monospace;">${esc(String(ip))}</td>
-        <td style="padding: 8px 12px; color: ${statusColor}; font-weight: bold;">${esc(String(statusCode))}</td>
+        <td style="padding: 8px 12px; color: ${resolvedColor}; font-weight: bold;">${resolvedLabel}</td>
+        <td style="padding: 8px 12px; color: ${statusColor}; font-weight: bold;">${statusLabel}</td>
+        <td style="padding: 8px 12px; color: ${sensitiveColor}; font-weight: bold;">${sensitiveDisplay}</td>
         <td style="padding: 8px 12px;">${techHtml}</td>
         <td style="padding: 8px 12px;">${portsHtml}</td>
         <td style="padding: 8px 12px; text-align: center;">${screenshotHtml}</td>
@@ -725,6 +792,248 @@ function renderSubdomains(data) {
 
   html += `</tbody></table></div>`;
   body.innerHTML = html;
+}
+
+// ============================================================
+// OSINT Render
+// ============================================================
+function renderOSINT(data) {
+  const body = document.getElementById("osintBody");
+  const status = document.getElementById("osintStatus");
+  if (!body) return;
+
+  if (!data) {
+    body.innerHTML = `<p class="no-data">No OSINT data available</p>`;
+    if (status) status.textContent = "N/A";
+    return;
+  }
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    if (status) status.textContent = "FAILED";
+    return;
+  }
+
+  let html = "";
+
+  const whois = data.whois || {};
+  if (whois && !whois.error) {
+    html += `<div class="tech-category"><div class="tech-category-title">📋 WHOIS</div>`;
+    html += `<div class="data-row"><span class="data-key">Registrar</span><span class="data-val">${esc(whois.registrar || 'N/A')}</span></div>`;
+    html += `<div class="data-row"><span class="data-key">Creation Date</span><span class="data-val">${esc(whois.creation_date || 'N/A')}</span></div>`;
+    html += `<div class="data-row"><span class="data-key">Expiration Date</span><span class="data-val">${esc(whois.expiration_date || 'N/A')}</span></div>`;
+    if (whois.name_servers && whois.name_servers.length) {
+      html += `<div class="data-row"><span class="data-key">Name Servers</span><span class="data-val">${esc(whois.name_servers.join(', '))}</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  const dns = data.dns_records || {};
+  if (Object.keys(dns).length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">🌐 DNS Records</div>`;
+    for (const [type, values] of Object.entries(dns)) {
+      if (values && values.length > 0) {
+        html += `<div class="data-row"><span class="data-key">${esc(type)}</span><span class="data-val">${esc(values.join(', '))}</span></div>`;
+      }
+    }
+    html += `</div>`;
+  }
+
+  const wayback = data.wayback_urls || [];
+  if (wayback.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">📜 Wayback Machine (${wayback.length} URLs)</div>`;
+    const display = wayback.slice(0, 10);
+    display.forEach(url => {
+      html += `<div class="data-row"><span class="data-val" style="word-break:break-all;">${esc(url)}</span></div>`;
+    });
+    if (wayback.length > 10) {
+      html += `<div class="data-row"><span class="data-val">... and ${wayback.length - 10} more</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  const crt = data.crt_subdomains || [];
+  if (crt.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">🔍 crt.sh Subdomains (${crt.length})</div>`;
+    const display = crt.slice(0, 20);
+    display.forEach(sub => {
+      html += `<div class="data-row"><span class="data-val">${esc(sub)}</span></div>`;
+    });
+    if (crt.length > 20) {
+      html += `<div class="data-row"><span class="data-val">... and ${crt.length - 20} more</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (!html) {
+    html = `<p class="no-data">No OSINT information found.</p>`;
+  }
+
+  body.innerHTML = html;
+  if (status) status.textContent = "Complete";
+}
+
+// ============================================================
+// Risk Prioritization Render
+// ============================================================
+function renderRisk(data) {
+  const body = document.getElementById("riskBody");
+  const status = document.getElementById("riskStatus");
+  if (!body) return;
+
+  if (!data) {
+    body.innerHTML = `<p class="no-data">No risk assessment data</p>`;
+    if (status) status.textContent = "N/A";
+    return;
+  }
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    if (status) status.textContent = "FAILED";
+    return;
+  }
+
+  const overall = data.overall_risk || "UNKNOWN";
+  const score = data.score !== undefined ? data.score : "—";
+  const headline = data.headline || "";
+  const findings = data.findings || [];
+  const observations = data.observations || [];
+  const summary = data.summary || {};
+
+  let riskColor = "#6c757d";
+  if (overall === "CRITICAL") riskColor = "#dc3545";
+  else if (overall === "HIGH") riskColor = "#fd7e14";
+  else if (overall === "MEDIUM") riskColor = "#ffc107";
+  else if (overall === "LOW") riskColor = "#28a745";
+
+  let html = `
+    <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:16px;">
+      <div style="background:${riskColor}; color:white; padding:8px 20px; border-radius:20px; font-weight:bold; font-size:1.1rem;">${overall}</div>
+      <div style="background:#1a2e20; color:#00ff88; padding:8px 20px; border-radius:20px; font-weight:bold;">Score: ${score}/100</div>
+    </div>
+  `;
+
+  if (headline) {
+    html += `<p style="color:#aaa; margin-bottom:12px;"><em>${esc(headline)}</em></p>`;
+  }
+
+  if (Object.keys(summary).length > 0) {
+    html += `<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">`;
+    const labels = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
+    for (const [key, count] of Object.entries(summary)) {
+      if (count > 0) {
+        html += `<span style="background:#1a1a2e; padding:4px 12px; border-radius:12px; color:white;">${labels[key] || key}: ${count}</span>`;
+      }
+    }
+    html += `</div>`;
+  }
+
+  if (findings.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">⚠️ Findings (${findings.length})</div>`;
+    const display = findings.slice(0, 10);
+    display.forEach(f => {
+      const sev = f.severity || 'Info';
+      let sevColor = "#6c757d";
+      if (sev === "CRITICAL") sevColor = "#dc3545";
+      else if (sev === "HIGH") sevColor = "#fd7e14";
+      else if (sev === "MEDIUM") sevColor = "#ffc107";
+      else if (sev === "LOW") sevColor = "#28a745";
+      html += `<div class="data-row"><span style="color:${sevColor}; font-weight:bold;">[${sev}]</span> <span class="data-val">${esc(f.description || '')}</span></div>`;
+      if (f.recommendation) {
+        html += `<div class="data-row" style="padding-left:20px;"><span class="data-key" style="color:#888;">💡</span><span class="data-val" style="font-size:0.85rem; color:#aaa;">${esc(f.recommendation)}</span></div>`;
+      }
+    });
+    if (findings.length > 10) {
+      html += `<div class="data-row"><span class="data-val" style="color:#888;">... and ${findings.length - 10} more</span></div>`;
+    }
+    html += `</div>`;
+  } else {
+    html += `<p style="color:#00aa55;">✅ No significant risks found.</p>`;
+  }
+
+  if (observations.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">ℹ️ Observations (${observations.length})</div>`;
+    observations.slice(0, 5).forEach(obs => {
+      html += `<div class="data-row"><span class="data-key" style="color:#888;">[${esc(obs.severity || 'Info')}]</span><span class="data-val">${esc(obs.description || '')}</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  body.innerHTML = html;
+  if (status) status.textContent = overall;
+}
+
+// ============================================================
+// Threat Intelligence Render
+// ============================================================
+function renderThreatIntel(data) {
+  const body = document.getElementById("threatIntelBody");
+  const status = document.getElementById("threatIntelStatus");
+  if (!body) return;
+
+  if (!data) {
+    body.innerHTML = `<p class="no-data">No threat intelligence data available.</p>`;
+    if (status) status.textContent = "N/A";
+    return;
+  }
+
+  if (data.error) {
+    body.innerHTML = `<div class="error-msg">${esc(data.error)}</div>`;
+    if (status) status.textContent = "FAILED";
+    return;
+  }
+
+  const summary = data.summary || {};
+  const malicious = data.malicious_entities || [];
+  const highRisk = data.high_risk_entities || [];
+
+  let html = `
+    <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:12px;">
+      <div style="background:#1a2e20; padding:8px 16px; border-radius:4px; color:#00ff88;">Checked: ${summary.total_entities || 0}</div>
+      <div style="background:#2a1a1a; padding:8px 16px; border-radius:4px; color:#ff4444;">Malicious: ${summary.malicious_count || 0}</div>
+      <div style="background:#2a1a1a; padding:8px 16px; border-radius:4px; color:#ff8800;">High Risk: ${summary.high_risk_count || 0}</div>
+    </div>
+  `;
+
+  if (malicious.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">⚠️ Malicious Entities</div>`;
+    malicious.forEach(entity => {
+      html += `<div class="data-row"><span class="data-val" style="color:#ff4444;">${esc(entity)}</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (highRisk.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">🔥 High-Risk Entities</div>`;
+    highRisk.forEach(entity => {
+      html += `<div class="data-row"><span class="data-val" style="color:#ff8800;">${esc(entity)}</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  const details = data.details || {};
+  const scored = [];
+  for (const [entity, entityData] of Object.entries(details)) {
+    if (entityData && entityData.risk_score !== undefined) {
+      scored.push({ entity, score: entityData.risk_score });
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  if (scored.length > 0) {
+    html += `<div class="tech-category"><div class="tech-category-title">📊 Risk Scores (Top 5)</div>`;
+    scored.slice(0, 5).forEach(({ entity, score }) => {
+      const color = score > 70 ? "#ff4444" : score > 40 ? "#ff8800" : "#00ff88";
+      html += `<div class="data-row"><span class="data-key">${esc(entity)}</span><span class="data-val" style="color:${color}; font-weight:bold;">${score}/100</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (!malicious.length && !highRisk.length && !scored.length) {
+    html += `<p style="color:#00aa55;">✅ No threats detected from available intelligence sources.</p>`;
+  }
+
+  body.innerHTML = html;
+  if (status) status.textContent = "Complete";
 }
 
 // ── Automation Functions ──

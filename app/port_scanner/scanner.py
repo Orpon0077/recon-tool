@@ -1,141 +1,155 @@
-# Port Scanner Module – Final Version
-# Uses ThreadPoolExecutor for fast parallel scanning
-# Guarantees ports 80 and 443 are always checked
-
 import socket
-import requests
+import threading
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import urllib3
+from typing import List, Dict, Any, Optional
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+logger = logging.getLogger(__name__)
 
-HTTP_PORTS = {80, 443, 8080, 8443, 8000, 3000, 4200, 5000, 8888}
+def normalize_url(url: str) -> str:
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    if url.startswith('https://https://'):
+        url = url.replace('https://https://', 'https://')
+    elif url.startswith('http://http://'):
+        url = url.replace('http://http://', 'http://')
+    return url
 
-# Top 1000 most common ports (simplified but complete)
-TOP_1000_PORTS = {
-    21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS",
-    80: "HTTP", 110: "POP3", 111: "RPC", 135: "MSRPC", 139: "NetBIOS",
-    143: "IMAP", 443: "HTTPS", 445: "SMB", 587: "SMTP-TLS", 993: "IMAPS",
-    995: "POP3S", 1433: "MSSQL", 1521: "Oracle", 2181: "Zookeeper",
-    2375: "Docker", 2376: "Docker-TLS", 3000: "Node/React", 3306: "MySQL",
-    3389: "RDP", 4200: "Angular", 4369: "RabbitMQ", 5000: "Flask/Dev",
-    5432: "PostgreSQL", 5672: "RabbitMQ", 5900: "VNC", 6379: "Redis",
-    6443: "Kubernetes", 7474: "Neo4j", 8000: "Dev Server", 8080: "HTTP-Alt",
-    8081: "HTTP-Alt2", 8443: "HTTPS-Alt", 8888: "Jupyter", 9000: "PHP-FPM",
-    9042: "Cassandra", 9092: "Kafka", 9200: "Elasticsearch", 9300: "Elasticsearch",
-    11211: "Memcached", 15672: "RabbitMQ-UI", 27017: "MongoDB", 27018: "MongoDB",
-    28017: "MongoDB-Web", 50070: "Hadoop", 50075: "Hadoop",
-    7: "Echo", 9: "Discard", 13: "Daytime", 17: "QOTD", 19: "Chargen",
-    20: "FTP-Data", 26: "RSFTP", 37: "Time", 49: "TACACS", 69: "TFTP",
-    70: "Gopher", 79: "Finger", 88: "Kerberos", 113: "IDENT", 119: "NNTP",
-    161: "SNMP", 179: "BGP", 194: "IRC", 389: "LDAP", 465: "SMTPS",
-    500: "ISAKMP", 512: "Exec", 513: "Login", 514: "Shell", 515: "Printer",
-    543: "Klogin", 544: "Kshell", 548: "AFP", 554: "RTSP", 563: "NNTPS",
-    631: "IPP", 636: "LDAPS", 873: "Rsync", 990: "FTPS", 992: "Telnets",
-    994: "IRCS", 1025: "NFS", 1720: "H.323", 1723: "PPTP", 1755: "MMS",
-    1900: "UPnP", 2000: "Cisco-SCCP", 2049: "NFS", 2121: "CCProxy-FTP",
-    3128: "Squid", 3268: "LDAP", 3269: "LDAPS", 4444: "Metasploit",
-    4899: "RAdmin", 5060: "SIP", 5190: "AIM", 5357: "WSDAPI", 5800: "VNC-HTTP",
-    5985: "WinRM-HTTP", 5986: "WinRM-HTTPS", 6000: "X11", 7070: "RealServer",
-    8008: "HTTP-Alt", 8009: "Ajp13", 8082: "HTTP-Alt", 8083: "HTTP-Alt",
-    8084: "HTTP-Alt", 8085: "HTTP-Alt", 8086: "InfluxDB", 8087: "Riak",
-    8089: "Splunk", 8090: "HTTP-Alt", 8091: "Couchbase", 8092: "Couchbase",
-    8093: "Couchbase", 8094: "HTTP-Alt", 8095: "HTTP-Alt", 8096: "Jellyfin",
-    8097: "HTTP-Alt", 8098: "HTTP-Alt", 8099: "HTTP-Alt", 8161: "ActiveMQ",
-    8162: "ActiveMQ", 8181: "HTTP-Alt", 8182: "HTTP-Alt", 8222: "NATS",
-    8300: "Consul", 8301: "Consul", 8302: "Consul", 8400: "Consul",
-    8500: "Consul", 8600: "Consul", 9001: "Tor-ORPort", 9043: "WebSphere",
-    9060: "WebSphere", 9080: "WebSphere", 9090: "Zeus-Admin", 9100: "Jetdirect",
-    9999: "Abyss", 10000: "Webmin", 32768: "Filenet-TMS", 49152: "Unknown",
-}
-
-def get_port_list(port_option: str, custom_ports: str = None) -> dict:
-    if port_option == "top1000":
-        result = dict(TOP_1000_PORTS)
-    elif port_option == "custom" and custom_ports:
-        result = {}
-        for p in custom_ports.split(","):
-            p = p.strip()
-            if p.isdigit():
-                port_num = int(p)
-                result[port_num] = TOP_1000_PORTS.get(port_num, "Custom")
-    else:
-        result = dict(TOP_1000_PORTS)
-
-    # Guarantee 80 and 443
-    result.setdefault(80, "HTTP")
-    result.setdefault(443, "HTTPS")
-    return result
-
-def scan_single_port(host: str, port: int, timeout: float = 3.0) -> tuple:
-    """Scan a single port, returns (port, is_open)."""
+def scan_port(host: str, port: int, timeout: float = 1.0) -> Optional[Dict[str, Any]]:
+    """Check if a port is open and attempt basic service detection."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         result = sock.connect_ex((host, port))
         sock.close()
-        return port, result == 0
-    except Exception:
-        return port, False
-
-def get_version(host: str, port: int) -> str:
-    """Get version info for HTTP ports."""
-    if port not in HTTP_PORTS:
-        return "Unknown"
-    try:
-        scheme = "https" if port in {443, 8443} else "http"
-        url = f"{scheme}://{host}:{port}"
-        response = requests.get(url, timeout=3, verify=False, allow_redirects=True)
-        server = response.headers.get("Server", "")
-        if server:
-            return server
-        powered = response.headers.get("X-Powered-By", "")
-        if powered:
-            return powered
-        return f"HTTP {response.status_code}"
-    except:
-        return "Unknown"
-
-def scan_ports(url: str, port_option: str = "top1000", custom_ports: str = None) -> dict:
-    """
-    Scan target for open ports using ThreadPoolExecutor.
-    Guaranteed to check 80 and 443.
-    """
-    try:
-        host = url.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
-        ip = socket.gethostbyname(host)
+        if result == 0:
+            service = socket.getservbyport(port, "tcp") if port <= 65535 else "unknown"
+            # বাংলা: version-এ আর Next.js বসাব না, সবসময় "unknown" রাখব
+            return {
+                "port": port,
+                "service": service,
+                "state": "open",
+                "version": "unknown"  # ← ফিক্স করা হলো
+            }
     except Exception as e:
-        return {"error": f"Host resolution failed: {e}", "open_ports": [], "total_open": 0}
+        logger.debug(f"Error scanning port {port}: {e}")
+    return None
 
-    ports_dict = get_port_list(port_option, custom_ports)
-    ports_to_scan = list(ports_dict.keys())
+def get_top_ports(count: int = 1000) -> List[int]:
+    """Return the top N most common ports."""
+    top_ports = [
+        1, 3, 4, 6, 7, 9, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 30, 32, 33,
+        37, 42, 43, 49, 50, 53, 54, 56, 57, 58, 61, 62, 63, 65, 66, 67, 68,
+        69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85,
+        86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101,
+        102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114,
+        115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127,
+        128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140,
+        141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153,
+        154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166,
+        167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179,
+        180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192,
+        193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205,
+        206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218,
+        219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231,
+        232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244,
+        245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257,
+        258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270,
+        271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283,
+        284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296,
+        297, 298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309,
+        310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 320, 321, 322,
+        323, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334, 335,
+        336, 337, 338, 339, 340, 341, 342, 343, 344, 345, 346, 347, 348,
+        349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359, 360, 361,
+        362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374,
+        375, 376, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 387,
+        388, 389, 390, 391, 392, 393, 394, 395, 396, 397, 398, 399, 400,
+        401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413,
+        414, 415, 416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426,
+        427, 428, 429, 430, 431, 432, 433, 434, 435, 436, 437, 438, 439,
+        440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452,
+        453, 454, 455, 456, 457, 458, 459, 460, 461, 462, 463, 464, 465,
+        466, 467, 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478,
+        479, 480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491,
+        492, 493, 494, 495, 496, 497, 498, 499, 500, 501, 502, 503, 504,
+        505, 506, 507, 508, 509, 510, 511, 512, 513, 514, 515, 516, 517,
+        518, 519, 520, 521, 522, 523, 524, 525, 526, 527, 528, 529, 530,
+        531, 532, 533, 534, 535, 536, 537, 538, 539, 540, 541, 542, 543,
+        544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 555, 556,
+        557, 558, 559, 560, 561, 562, 563, 564, 565, 566, 567, 568, 569,
+        570, 571, 572, 573, 574, 575, 576, 577, 578, 579, 580, 581, 582,
+        583, 584, 585, 586, 587, 588, 589, 590, 591, 592, 593, 594, 595,
+        596, 597, 598, 599, 600, 601, 602, 603, 604, 605, 606, 607, 608,
+        609, 610, 611, 612, 613, 614, 615, 616, 617, 618, 619, 620, 621,
+        622, 623, 624, 625, 626, 627, 628, 629, 630, 631, 632, 633, 634,
+        635, 636, 637, 638, 639, 640, 641, 642, 643, 644, 645, 646, 647,
+        648, 649, 650, 651, 652, 653, 654, 655, 656, 657, 658, 659, 660,
+        661, 662, 663, 664, 665, 666, 667, 668, 669, 670, 671, 672, 673,
+        674, 675, 676, 677, 678, 679, 680, 681, 682, 683, 684, 685, 686,
+        687, 688, 689, 690, 691, 692, 693, 694, 695, 696, 697, 698, 699,
+        700, 701, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712,
+        713, 714, 715, 716, 717, 718, 719, 720, 721, 722, 723, 724, 725,
+        726, 727, 728, 729, 730, 731, 732, 733, 734, 735, 736, 737, 738,
+        739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 750, 751,
+        752, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763, 764,
+        765, 766, 767, 768, 769, 770, 771, 772, 773, 774, 775, 776, 777,
+        778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790,
+        791, 792, 793, 794, 795, 796, 797, 798, 799, 800, 801, 802, 803,
+        804, 805, 806, 807, 808, 809, 810, 811, 812, 813, 814, 815, 816,
+        817, 818, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 829,
+        830, 831, 832, 833, 834, 835, 836, 837, 838, 839, 840, 841, 842,
+        843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853, 854, 855,
+        856, 857, 858, 859, 860, 861, 862, 863, 864, 865, 866, 867, 868,
+        869, 870, 871, 872, 873, 874, 875, 876, 877, 878, 879, 880, 881,
+        882, 883, 884, 885, 886, 887, 888, 889, 890, 891, 892, 893, 894,
+        895, 896, 897, 898, 899, 900, 901, 902, 903, 904, 905, 906, 907,
+        908, 909, 910, 911, 912, 913, 914, 915, 916, 917, 918, 919, 920,
+        921, 922, 923, 924, 925, 926, 927, 928, 929, 930, 931, 932, 933,
+        934, 935, 936, 937, 938, 939, 940, 941, 942, 943, 944, 945, 946,
+        947, 948, 949, 950, 951, 952, 953, 954, 955, 956, 957, 958, 959,
+        960, 961, 962, 963, 964, 965, 966, 967, 968, 969, 970, 971, 972,
+        973, 974, 975, 976, 977, 978, 979, 980, 981, 982, 983, 984, 985,
+        986, 987, 988, 989, 990, 991, 992, 993, 994, 995, 996, 997, 998,
+        999, 1000
+    ]
+    return top_ports[:count] if count <= len(top_ports) else top_ports
 
-    print(f"[Port Scanner] Scanning {len(ports_to_scan)} ports on {host}...")
+def scan_ports(url: str, port_option: str = "top1000", custom_ports: str = None) -> Dict[str, Any]:
+    """
+    Scan ports on the target URL.
+    """
+    url = normalize_url(url)
+    host = url.replace('https://', '').replace('http://', '').split('/')[0].split(':')[0]
+    logger.info(f"Scanning ports on {host}...")
 
+    if port_option == "top1000":
+        ports = get_top_ports(1000)
+    elif port_option == "all":
+        ports = list(range(1, 65536))
+    elif port_option == "custom" and custom_ports:
+        try:
+            ports = [int(p.strip()) for p in custom_ports.split(',') if p.strip()]
+        except ValueError:
+            return {"error": "Invalid custom ports format"}
+    else:
+        ports = get_top_ports(1000)
+
+    logger.info(f"Scanning {len(ports)} ports on {host}...")
     open_ports = []
-    # Use ThreadPoolExecutor for parallel scanning (max 100 threads)
     with ThreadPoolExecutor(max_workers=100) as executor:
-        futures = {executor.submit(scan_single_port, host, port, 3.0): port for port in ports_to_scan}
+        futures = {executor.submit(scan_port, host, port, 1.0): port for port in ports}
         for future in as_completed(futures):
-            port, is_open = future.result()
-            if is_open:
-                service = ports_dict.get(port, "unknown")
-                version = get_version(host, port) if port in HTTP_PORTS else "Unknown"
-                open_ports.append({
-                    "port": port,
-                    "service": service,
-                    "state": "open",
-                    "version": version,
-                    "protocol": "tcp"
-                })
-                print(f"[Port Scanner] Found port {port} ({service})")
+            result = future.result()
+            if result:
+                open_ports.append(result)
+                logger.info(f"Found port {result['port']} ({result['service']})")
 
-    print(f"[Port Scanner] Done. Total open: {len(open_ports)}")
+    open_ports.sort(key=lambda x: x['port'])
+    logger.info(f"Done. Total open: {len(open_ports)}")
 
     return {
-        "url": url,
-        "host": host,
-        "ip": ip,
         "open_ports": open_ports,
-        "total_open": len(open_ports)
+        "total_open": len(open_ports),
+        "host": host
     }

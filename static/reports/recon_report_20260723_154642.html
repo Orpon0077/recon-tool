@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recon Report — https://axiler.com</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .report-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .report-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.05em;
+        }
+        .report-header .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 16px;
+        }
+        .report-header .meta {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .report-header .meta-item {
+            background: rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        .report-body {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #0f3460;
+            page-break-inside: avoid;
+        }
+        .section h2 {
+            font-size: 1.2rem;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .section h3 {
+            font-size: 1.05rem;
+            margin-top: 16px;
+            margin-bottom: 10px;
+            color: #0f3460;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.88rem;
+        }
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            word-break: break-word;
+        }
+        tr:hover td {
+            background: #f8f9fa;
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        .error {
+            color: #ff4444;
+            font-style: italic;
+        }
+        ul { padding-left: 20px; margin: 8px 0; }
+        li { margin: 4px 0; }
+        .print-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #0f3460;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+        .print-btn:hover { background: #16213e; transform: translateY(-2px); }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .summary-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #0f3460;
+        }
+        .summary-card .label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        .report-footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #888;
+        }
+        @media print {
+            .print-btn { display: none; }
+            body { background: white; }
+            .section { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+            .summary-grid { page-break-inside: avoid; }
+            @page {
+                margin: 1.5cm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <h1>🔍 Web Reconnaissance Report</h1>
+        <div class="subtitle">Comprehensive Security Analysis</div>
+        <div class="meta">
+            <div class="meta-item">🎯 Target: <strong>https://axiler.com</strong></div>
+            <div class="meta-item">📅 Generated: <strong>2026-07-23 15:46:42</strong></div>
+            <div class="meta-item">🛠️ Tool: <strong>RECON Dashboard</strong></div>
+        </div>
+    </div>
+
+    <div class="report-body">
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="number">2</div>
+                <div class="label">Open Ports</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">16</div>
+                <div class="label">Subdomains</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">2</div>
+                <div class="label">Technologies</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">16</div>
+                <div class="label">Endpoints</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">0/100</div>
+                <div class="label">Security Score</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">YES</div>
+                <div class="label">CDN/WAF Detected</div>
+            </div>
+        </div>
+
+        
+        <div class="section">
+            <h2>🔒 SSL/TLS Analysis</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Issued To</td><td>*.axiler.com</td></tr>
+                <tr><td>Issued By</td><td>Amazon</td></tr>
+                <tr><td>Valid From</td><td>Jun 18 00:00:00 2026 GMT</td></tr>
+                <tr><td>Valid Until</td><td>Jan  1 23:59:59 2027 GMT</td></tr>
+                <tr><td>Days Remaining</td><td style="color:#00aa55; font-weight:bold;">162</td></tr>
+                <tr><td>Expired</td><td style="color:#00aa55; font-weight:bold;">NO ✓</td></tr>
+            </table>
+        </div>
+        
+        
+        <div class="section">
+            <h2>🛡️ Security Headers</h2>
+            <div class="score-badge" style="background:#ff4444;">Security Score: 0/100</div>
+            <table>
+                <tr><th>Header</th><th>Value / Status</th></tr>
+                
+                <tr><td style="color:#ff4444;">✗ strict-transport-security</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ content-security-policy</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ x-content-type-options</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ x-frame-options</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ referrer-policy</td><td style="color:#ff4444;">MISSING</td></tr><tr><td style="color:#ff4444;">✗ permissions-policy</td><td style="color:#ff4444;">MISSING</td></tr>
+            </table>
+        </div>
+        
+        
+            <div class="section">
+                <h2>🔍 Port Scanning</h2>
+                <p>Total open ports: <strong>2</strong></p>
+                <table>
+                    <tr><th>Port</th><th>Service</th><th>State</th><th>Version</th></tr>
+                    <tr><td style="font-weight:bold;">80</td><td>HTTP</td><td style="color:#00aa55;">OPEN</td><td>Next.js</td></tr><tr><td style="font-weight:bold;">443</td><td>HTTPS</td><td style="color:#00aa55;">OPEN</td><td>Next.js</td></tr>
+                </table>
+            </div>
+            
+        
+        <div class="section">
+            <h2>🔥 CDN / WAF Detection</h2>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Protection Layer</td><td style="font-weight:bold;">Detected</td></tr><tr><td>CDN</td><td style="color:#00aa55;">YES ✓</td></tr><tr><td>CDN Name</td><td>CloudFront</td></tr><tr><td>WAF</td><td style="color:#ff8800;">NO</td></tr><tr><td>Evidence</td><td>Custom detection: header:x-amz-cf-id, header:x-amz-cf-pop</td></tr>
+            </table>
+        </div>
+        
+        
+            <div class="section">
+                <h2>⚙️ Technology Detection</h2>
+                <p>Total technologies found: <strong>2</strong></p>
+                <table>
+                    <tr><th>Category</th><th>Technologies</th></tr>
+                    <tr><td style="font-weight:bold;">JavaScript Frameworks</td><td>Next.js, React</td></tr>
+                </table>
+            </div>
+            
+        
+            <div class="section">
+                <h2>🕷️ Crawling / Endpoint Discovery</h2>
+                <p>Total endpoints found: <strong>16</strong></p>
+                <table>
+                    <tr><th>URL</th><th>Method</th><th>Status</th><th>Content Type</th></tr>
+                    <tr><td style="word-break:break-all;">https://axiler.com/products/agentic-dast</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/about-us</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/partner</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/privacy-policy</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/agentic-sast</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/agentic-cloud-security</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/agentic-waf</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/schedule-a-demo</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/feature</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/solutions</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/products/api-mcp-security</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/terms-condition</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr><tr><td style="word-break:break-all;">https://axiler.com/blog</td><td>GET</td><td style="color:#00aa55;">200</td><td>text/html</td></tr>
+                </table>
+            </div>
+            
+        
+            <div class="section">
+                <h2>🌐 Subdomain Discovery</h2>
+                <p>Total subdomains found: <strong>16</strong> · Sensitive names: <strong>7</strong></p>
+                <table>
+                    <tr><th>Subdomain</th><th>IP Address</th><th>HTTP Status</th><th>Sensitive</th></tr>
+                    <tr><td>api.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#ff4444;">YES</td></tr><tr><td>axiler.com</td><td>3.171.198.28</td><td>200</td><td style="color:#888;">NO</td></tr><tr><td>blog.axiler.com</td><td>54.82.87.38</td><td>N/A</td><td style="color:#888;">NO</td></tr><tr><td>cade-demo-api.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#ff4444;">YES</td></tr><tr><td>cade-demo.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#ff4444;">YES</td></tr><tr><td>db-backup-api.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#ff4444;">YES</td></tr><tr><td>fwtrack.axiler.com</td><td>3.217.158.89</td><td>404</td><td style="color:#888;">NO</td></tr><tr><td>kulvdi.tru-connect.biz.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#888;">NO</td></tr><tr><td>link.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#888;">NO</td></tr><tr><td>marketing.axiler.com</td><td>162.159.140.147</td><td>200</td><td style="color:#888;">NO</td></tr><tr><td>portal.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#ff4444;">YES</td></tr><tr><td>self-healing-api.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#ff4444;">YES</td></tr><tr><td>tools.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#888;">NO</td></tr><tr><td>waf-go-api.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#ff4444;">YES</td></tr><tr><td>waf.axiler.com</td><td>N/A</td><td>N/A</td><td style="color:#888;">NO</td></tr><tr><td>www.axiler.com</td><td>3.171.198.76</td><td>200</td><td style="color:#888;">NO</td></tr>
+                </table>
+            </div>
+            
+        <div class="section"><h2>📜 JavaScript Analysis</h2><p>Total JS files: <strong>10</strong></p><p><strong>Internal Paths:</strong></p><ul><li>/ROOT/node_modules/next/dist/compiled/process/</li><li>/privacy-policy</li><li>/blog/detail</li><li>/a/i</li><li>/a/b</li></ul><p><strong>Build Path Leakage:</strong> ROOT, node_modules</p><p><strong>Potential secrets/tokens:</strong> 5 match(es) found</p></div>
+        
+            <div class="section">
+                <h2>📸 Screenshot</h2>
+                <img src="/static/screenshots/axiler.com_20260723_153956.png" alt="Screenshot of https://axiler.com" style="max-width:100%; border:1px solid #ddd; border-radius:4px;">
+            </div>
+            
+        
+        <div class="section" style="border-left-color: #6f42c1;">
+            <h2>🌍 Open Source Intelligence (OSINT)</h2>
+            
+            <h3>📋 WHOIS Information</h3>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Registrar</td><td>NAMECHEAP INC</td></tr>
+                <tr><td>Creation Date</td><td>2019-08-17 17:41:17+00:00</td></tr>
+                <tr><td>Expiration Date</td><td>2029-08-17 17:41:17+00:00</td></tr>
+                <tr><td>Name Servers</td><td>NS-1098.AWSDNS-09.ORG, NS-1832.AWSDNS-37.CO.UK, NS-380.AWSDNS-47.COM, NS-907.AWSDNS-49.NET</td></tr>
+            </table>
+            <p>No DNS records retrieved.</p><p>No Wayback URLs found.</p><p>No crt.sh subdomains found.</p>
+        </div>
+        
+        
+        <div class="section" style="border-left-color: #8b0000;">
+            <h2>🛡️ Threat Intelligence</h2>
+            
+        <h3>📊 Summary</h3>
+        <table>
+            <tr><th>Metric</th><th>Count</th></tr>
+            <tr><td>Entities Checked</td><td>16</td></tr>
+            <tr><td>Malicious Entities</td><td style="color:#ff4444;">0</td></tr>
+            <tr><td>High-Risk Entities</td><td style="color:#ff8800;">0</td></tr>
+        </table>
+        <h3>📊 Top Risk Scores</h3><table><tr><th>Entity</th><th>Risk Score</th></tr><tr><td>axiler.com</td><td style='color:#00aa55; font-weight:bold;'>0/100</td></tr><tr><td>3.217.158.89</td><td style='color:#00aa55; font-weight:bold;'>0/100</td></tr><tr><td>54.82.87.38</td><td style='color:#00aa55; font-weight:bold;'>0/100</td></tr><tr><td>3.171.198.76</td><td style='color:#00aa55; font-weight:bold;'>0/100</td></tr><tr><td>162.159.140.147</td><td style='color:#00aa55; font-weight:bold;'>0/100</td></tr></table>
+        </div>
+        
+        
+        <div class="section" style="border-left-color: #fd7e14;">
+            <h2>📊 CTEM Prioritization (Risk Assessment)</h2>
+            
+        <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:16px;">
+            <div style="background:#fd7e14; color:white; padding:12px 24px; border-radius:8px; font-weight:bold; font-size:1.3rem;">
+                Overall Risk: HIGH
+            </div>
+            <div style="background:#1a1a2e; color:white; padding:12px 24px; border-radius:8px; font-weight:bold; font-size:1.1rem;">
+                Score: 47/100
+            </div>
+        </div>
+        <p style="margin-bottom:12px; color:#555;"><em>HIGH overall exposure with critical configuration gaps</em></p>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="width: 200px; height: 200px; text-align: center;">
+                <canvas id="riskPieChart"></canvas>
+                <p style="font-size: 0.7rem; color: #888; margin-top: 5px;">Severity Breakdown</p>
+            </div>
+            <div style="width: 250px; text-align: center;">
+                <p style="font-size: 0.8rem; font-weight: bold; margin-bottom: 5px;">Risk Score</p>
+                <div style="width: 100%; background: #e9ecef; border-radius: 10px; height: 25px; overflow: hidden; border: 1px solid #ddd;">
+                    <div id="scoreGaugeBar" style="width: 47%; height: 100%; background: #fd7e14; border-radius: 10px; transition: width 0.5s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.7rem;">
+                        47/100
+                    </div>
+                </div>
+                <p style="font-size: 0.6rem; color: #888; margin-top: 3px;">0 ———————————— 100</p>
+            </div>
+        </div>
+        
+            <table>
+                <tr><th>Severity</th><th>Count</th></tr>
+                <tr><td style="color:#dc3545;">Critical</td><td>2</td></tr>
+                <tr><td style="color:#fd7e14;">High</td><td>0</td></tr>
+                <tr><td style="color:#ffc107;">Medium</td><td>1</td></tr>
+                <tr><td style="color:#28a745;">Low</td><td>0</td></tr>
+            </table>
+            <p><strong>Findings (3):</strong></p><ul><li><strong>[CRITICAL]</strong> Security headers score is 0/100. Missing HSTS or CSP.<br><span style='font-size:0.85rem; color:#888;'>💡 Implement HSTS, CSP, X-Frame-Options, and X-Content-Type-Options.</span></li><li><strong>[CRITICAL]</strong> Potential secrets found in JavaScript (5 match(es)).<br><span style='font-size:0.85rem; color:#888;'>💡 Rotate exposed credentials and remove secrets from client-side bundles.</span></li><li><strong>[MEDIUM]</strong> Build path leakage in JavaScript: ROOT, node_modules<br><span style='font-size:0.85rem; color:#888;'>💡 Review bundler output and disable source maps in production.</span></li></ul><p><strong>Observations:</strong></p><ul><li><span style='color:#6c757d;'>[INFO]</span> CDN detected: CloudFront</li></ul>
+        </div>
+        
+    </div>
+
+    <div class="report-footer">
+        <span>Generated by RECON Dashboard — https://axiler.com</span>
+        <span>Report for internal use only</span>
+    </div>
+
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var pieCtx = document.getElementById('riskPieChart');
+            if (pieCtx) {
+                new Chart(pieCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Critical', 'High', 'Medium', 'Low'],
+                        datasets: [{
+                            data: [2, 0, 1, 0],
+                            backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745'],
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { boxWidth: 10, font: { size: 10 } }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
